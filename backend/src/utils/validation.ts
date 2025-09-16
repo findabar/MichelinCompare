@@ -1,0 +1,28 @@
+import Joi from 'joi';
+
+export const registerSchema = Joi.object({
+  username: Joi.string().alphanum().min(3).max(30).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+});
+
+export const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().required(),
+});
+
+export const visitSchema = Joi.object({
+  restaurantId: Joi.string().required(),
+  dateVisited: Joi.date().required(),
+  notes: Joi.string().allow('').optional(),
+});
+
+export const restaurantQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  search: Joi.string().allow('').optional(),
+  country: Joi.string().allow('').optional(),
+  city: Joi.string().allow('').optional(),
+  cuisineType: Joi.string().allow('').optional(),
+  michelinStars: Joi.number().integer().min(1).max(3).optional(),
+});

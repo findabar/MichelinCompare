@@ -1,0 +1,37 @@
+databases:
+  - name: michelin-star-hunter-db
+    databaseName: michelin_star_hunter
+    user: michelin_user
+
+services:
+  - type: web
+    name: michelin-star-hunter-backend
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: cd backend && ./render-build.sh
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: DATABASE_URL
+        fromDatabase:
+          name: michelin-star-hunter-db
+          property: connectionString
+      - key: FRONTEND_URL
+        value: https://michelin-star-hunter-frontend.onrender.com
+
+  - type: web
+    name: michelin-star-hunter-frontend
+    env: static
+    region: oregon
+    plan: starter
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://michelin-star-hunter-backend.onrender.com/api

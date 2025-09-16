@@ -1,0 +1,41 @@
+{
+  "name": "michelin-star-hunter-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Michelin Star Hunter",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "start:prod": "npx prisma migrate deploy && npx prisma db seed && node dist/server.js",
+    "migrate": "npx prisma migrate dev",
+    "migrate:reset": "npx prisma migrate reset",
+    "db:seed": "npx prisma db seed",
+    "db:studio": "npx prisma studio"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "joi": "^17.11.0",
+    "prisma": "^5.6.0",
+    "@prisma/client": "^5.6.0",
+    "dotenv": "^16.3.1",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.10",
+    "@types/express": "^4.17.20",
+    "@types/cors": "^2.8.15",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "typescript": "^5.2.2",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.1"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
