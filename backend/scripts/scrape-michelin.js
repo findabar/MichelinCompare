@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,31 +9,10 @@ class MichelinScraper {
   }
 
   async init() {
-    // Use system Chrome on Railway (available at these paths)
-    const executablePaths = [
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium'
-    ];
-
-    let executablePath = null;
-    for (const path of executablePaths) {
-      if (require('fs').existsSync(path)) {
-        executablePath = path;
-        break;
-      }
-    }
-
-    if (!executablePath) {
-      throw new Error('No Chrome/Chromium executable found on system');
-    }
-
-    console.log(`🌐 Using Chrome at: ${executablePath}`);
+    console.log('🚀 Initializing browser...');
 
     this.browser = await puppeteer.launch({
       headless: true,
-      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -41,9 +20,13 @@ class MichelinScraper {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
       ]
     });
+
+    console.log('✅ Browser initialized successfully');
   }
 
   async scrapeCountry(countryCode, countryName) {
