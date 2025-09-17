@@ -1,0 +1,19 @@
+{
+  "name": "michelin-scraper",
+  "version": "1.0.0",
+  "description": "Scripts for scraping and seeding Michelin starred restaurants",
+  "main": "scrape-michelin.js",
+  "scripts": {
+    "scrape": "node scrape-michelin.js",
+    "seed-production": "node seed-production.js",
+    "seed-production-clear": "node seed-production.js --clear",
+    "full-refresh": "npm run scrape && npm run seed-production-clear"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "@prisma/client": "*"
+  },
+  "keywords": ["michelin", "restaurants", "scraping", "seeding"],
+  "author": "",
+  "license": "MIT"
+}

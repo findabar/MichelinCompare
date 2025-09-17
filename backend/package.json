@@ -11,7 +11,11 @@
     "migrate": "npx prisma migrate dev",
     "migrate:reset": "npx prisma migrate reset",
     "db:seed": "npx prisma db seed",
-    "db:studio": "npx prisma studio"
+    "db:studio": "npx prisma studio",
+    "scrape-michelin": "cd scripts && npm install && npm run scrape",
+    "seed-production": "cd scripts && npm install && npm run seed-production",
+    "seed-production-clear": "cd scripts && npm install && npm run seed-production-clear",
+    "refresh-restaurants": "npm run scrape-michelin && npm run seed-production-clear"
   },
   "dependencies": {
     "express": "^4.18.2",
