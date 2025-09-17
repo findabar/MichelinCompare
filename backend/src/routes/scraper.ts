@@ -1,202 +1,123 @@
 import express from 'express';
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs';
 import { createError } from '../middleware/errorHandler';
 import adminAuth from '../middleware/adminAuth';
 
 const router = express.Router();
 
-// In-memory store for scraper status (in production, use Redis or database)
-let scraperStatus = {
-  isRunning: false,
-  lastRun: null as Date | null,
-  lastResult: null as any,
-  currentProgress: '',
-  error: null as string | null
-};
+// Scraper service URL - this should be set via environment variable
+const SCRAPER_SERVICE_URL = process.env.SCRAPER_SERVICE_URL || 'http://localhost:3002';
 
 // POST /api/scraper/start - Start the scraping process (requires authentication)
 router.post('/start', adminAuth, async (req, res, next) => {
   try {
-    if (scraperStatus.isRunning) {
-      return next(createError('Scraper is already running', 409));
-    }
+    console.log('🚀 Triggering scraper service...');
 
-    // Reset status
-    scraperStatus = {
-      isRunning: true,
-      lastRun: new Date(),
-      lastResult: null,
-      currentProgress: 'Starting scraper...',
-      error: null
-    };
-
-    // Start the scraper as a background process
-    const scriptsPath = path.join(process.cwd(), 'scripts');
-    const scraperPath = path.join(scriptsPath, 'scrape-michelin.js');
-
-    // Check if scraper exists
-    if (!fs.existsSync(scraperPath)) {
-      scraperStatus.isRunning = false;
-      scraperStatus.error = 'Scraper script not found';
-      return next(createError('Scraper script not found', 500));
-    }
-
-    console.log('🚀 Starting Michelin restaurant scraper via API...');
-
-    // Run the scraper
-    const scraperProcess = spawn('node', [scraperPath], {
-      cwd: scriptsPath,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-
-    // Handle scraper output
-    scraperProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      console.log('[SCRAPER]', output);
-      scraperStatus.currentProgress = output.trim();
-    });
-
-    scraperProcess.stderr.on('data', (data) => {
-      const error = data.toString();
-      console.error('[SCRAPER ERROR]', error);
-      scraperStatus.error = error.trim();
-    });
-
-    scraperProcess.on('close', async (code) => {
-      console.log(`🏁 Scraper process exited with code ${code}`);
-
-      if (code === 0) {
-        // Scraper succeeded, now run the seeder
-        console.log('💾 Starting database seeding...');
-        scraperStatus.currentProgress = 'Scraping completed, starting database seeding...';
-
-        try {
-          await runSeeder();
-          scraperStatus.isRunning = false;
-          scraperStatus.currentProgress = 'Completed successfully!';
-          scraperStatus.lastResult = {
-            success: true,
-            timestamp: new Date(),
-            message: 'Scraping and seeding completed successfully'
-          };
-        } catch (seedError) {
-          console.error('❌ Seeding failed:', seedError);
-          scraperStatus.isRunning = false;
-          const errorMessage = seedError instanceof Error ? seedError.message : String(seedError);
-          scraperStatus.error = `Seeding failed: ${errorMessage}`;
-          scraperStatus.lastResult = {
-            success: false,
-            timestamp: new Date(),
-            error: errorMessage
-          };
-        }
-      } else {
-        scraperStatus.isRunning = false;
-        scraperStatus.error = `Scraper failed with exit code ${code}`;
-        scraperStatus.lastResult = {
-          success: false,
-          timestamp: new Date(),
-          error: `Process exited with code ${code}`
-        };
+    // Call the scraper service
+    const response = await fetch(`${SCRAPER_SERVICE_URL}/scrape`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
       }
     });
 
-    scraperProcess.on('error', (error) => {
-      console.error('❌ Failed to start scraper:', error);
-      scraperStatus.isRunning = false;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      scraperStatus.error = `Failed to start: ${errorMessage}`;
-      scraperStatus.lastResult = {
-        success: false,
-        timestamp: new Date(),
-        error: errorMessage
-      };
-    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(`Scraper service error: ${errorData.error || response.statusText}`);
+    }
+
+    const result = await response.json();
 
     res.status(202).json({
-      message: 'Scraper started successfully',
-      status: 'running',
-      startedAt: scraperStatus.lastRun
+      message: 'Scraper started successfully via scraper service',
+      scraperService: SCRAPER_SERVICE_URL,
+      result
     });
 
   } catch (error) {
-    scraperStatus.isRunning = false;
+    console.error('❌ Failed to start scraper service:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    scraperStatus.error = errorMessage;
-    next(error);
+
+    if (errorMessage.includes('fetch')) {
+      return next(createError('Scraper service unavailable. Please ensure the scraper service is running.', 503));
+    }
+
+    next(createError(`Failed to start scraper: ${errorMessage}`, 500));
   }
 });
 
 // GET /api/scraper/status - Get current scraper status
-router.get('/status', (_req, res) => {
-  res.json({
-    isRunning: scraperStatus.isRunning,
-    lastRun: scraperStatus.lastRun,
-    currentProgress: scraperStatus.currentProgress,
-    lastResult: scraperStatus.lastResult,
-    error: scraperStatus.error
-  });
+router.get('/status', async (_req, res, next) => {
+  try {
+    console.log('📊 Fetching scraper status from service...');
+
+    const response = await fetch(`${SCRAPER_SERVICE_URL}/status`);
+
+    if (!response.ok) {
+      throw new Error(`Scraper service error: ${response.statusText}`);
+    }
+
+    const status = await response.json();
+
+    res.json({
+      ...status,
+      scraperService: SCRAPER_SERVICE_URL
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to get scraper status:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('fetch')) {
+      return res.json({
+        isRunning: false,
+        error: 'Scraper service unavailable',
+        scraperService: SCRAPER_SERVICE_URL,
+        lastRun: null,
+        progress: 'Service unavailable',
+        result: null
+      });
+    }
+
+    next(createError(`Failed to get scraper status: ${errorMessage}`, 500));
+  }
 });
 
 // POST /api/scraper/stop - Stop the scraping process (requires authentication)
-router.post('/stop', adminAuth, (_req, res, next) => {
-  if (!scraperStatus.isRunning) {
-    return next(createError('No scraper is currently running', 400));
-  }
+router.post('/stop', adminAuth, async (_req, res, next) => {
+  try {
+    console.log('🛑 Stopping scraper service...');
 
-  // In a real implementation, you'd need to track the process ID to kill it
-  // For now, just reset the status
-  scraperStatus.isRunning = false;
-  scraperStatus.currentProgress = 'Stopped by user';
-
-  res.json({
-    message: 'Scraper stop requested',
-    status: 'stopped'
-  });
-});
-
-// Helper function to run the seeder
-async function runSeeder() {
-  return new Promise((resolve, reject) => {
-    const scriptsPath = path.join(process.cwd(), 'scripts');
-    const seederPath = path.join(scriptsPath, 'seed-production.js');
-
-    const seederProcess = spawn('node', [seederPath], {
-      cwd: scriptsPath,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-
-    let output = '';
-    let errorOutput = '';
-
-    seederProcess.stdout.on('data', (data) => {
-      const text = data.toString();
-      console.log('[SEEDER]', text);
-      output += text;
-      scraperStatus.currentProgress = `Seeding: ${text.trim()}`;
-    });
-
-    seederProcess.stderr.on('data', (data) => {
-      const text = data.toString();
-      console.error('[SEEDER ERROR]', text);
-      errorOutput += text;
-    });
-
-    seederProcess.on('close', (code) => {
-      if (code === 0) {
-        console.log('✅ Seeding completed successfully');
-        resolve(output);
-      } else {
-        reject(new Error(`Seeder failed with exit code ${code}: ${errorOutput}`));
+    const response = await fetch(`${SCRAPER_SERVICE_URL}/stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
       }
     });
 
-    seederProcess.on('error', (error) => {
-      reject(error);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(`Scraper service error: ${errorData.error || response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    res.json({
+      message: 'Scraper stop requested via scraper service',
+      scraperService: SCRAPER_SERVICE_URL,
+      result
     });
-  });
-}
+
+  } catch (error) {
+    console.error('❌ Failed to stop scraper service:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('fetch')) {
+      return next(createError('Scraper service unavailable', 503));
+    }
+
+    next(createError(`Failed to stop scraper: ${errorMessage}`, 500));
+  }
+});
+
 
 export default router;
