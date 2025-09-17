@@ -1,4 +1,7 @@
 import express from 'express';
+import https from 'https';
+import http from 'http';
+import { URL } from 'url';
 import { createError } from '../middleware/errorHandler';
 import adminAuth from '../middleware/adminAuth';
 
@@ -7,25 +10,66 @@ const router = express.Router();
 // Scraper service URL - this should be set via environment variable
 const SCRAPER_SERVICE_URL = process.env.SCRAPER_SERVICE_URL || 'http://localhost:3002';
 
+// Helper function for making HTTP requests
+function makeRequest(url: string, options: { method?: string; data?: any } = {}): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const isHttps = parsedUrl.protocol === 'https:';
+    const client = isHttps ? https : http;
+
+    const requestOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname,
+      method: options.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.data && { 'Content-Length': Buffer.byteLength(JSON.stringify(options.data)) })
+      }
+    };
+
+    const req = client.request(requestOptions, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const jsonData = data ? JSON.parse(data) : {};
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(jsonData);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${jsonData.error || res.statusMessage}`));
+          }
+        } catch (error) {
+          reject(new Error(`Invalid JSON response: ${data}`));
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      reject(new Error(`Request failed: ${error.message}`));
+    });
+
+    if (options.data) {
+      req.write(JSON.stringify(options.data));
+    }
+
+    req.end();
+  });
+}
+
 // POST /api/scraper/start - Start the scraping process (requires authentication)
-router.post('/start', adminAuth, async (req, res, next) => {
+router.post('/start', adminAuth, async (_req, res, next) => {
   try {
     console.log('🚀 Triggering scraper service...');
 
     // Call the scraper service
-    const response = await fetch(`${SCRAPER_SERVICE_URL}/scrape`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+    const result = await makeRequest(`${SCRAPER_SERVICE_URL}/scrape`, {
+      method: 'POST'
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(`Scraper service error: ${errorData.error || response.statusText}`);
-    }
-
-    const result = await response.json();
 
     res.status(202).json({
       message: 'Scraper started successfully via scraper service',
@@ -37,7 +81,7 @@ router.post('/start', adminAuth, async (req, res, next) => {
     console.error('❌ Failed to start scraper service:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    if (errorMessage.includes('fetch')) {
+    if (errorMessage.includes('Request failed')) {
       return next(createError('Scraper service unavailable. Please ensure the scraper service is running.', 503));
     }
 
@@ -50,13 +94,7 @@ router.get('/status', async (_req, res, next) => {
   try {
     console.log('📊 Fetching scraper status from service...');
 
-    const response = await fetch(`${SCRAPER_SERVICE_URL}/status`);
-
-    if (!response.ok) {
-      throw new Error(`Scraper service error: ${response.statusText}`);
-    }
-
-    const status = await response.json();
+    const status = await makeRequest(`${SCRAPER_SERVICE_URL}/status`);
 
     res.json({
       ...status,
@@ -67,7 +105,7 @@ router.get('/status', async (_req, res, next) => {
     console.error('❌ Failed to get scraper status:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    if (errorMessage.includes('fetch')) {
+    if (errorMessage.includes('Request failed')) {
       return res.json({
         isRunning: false,
         error: 'Scraper service unavailable',
@@ -87,19 +125,9 @@ router.post('/stop', adminAuth, async (_req, res, next) => {
   try {
     console.log('🛑 Stopping scraper service...');
 
-    const response = await fetch(`${SCRAPER_SERVICE_URL}/stop`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+    const result = await makeRequest(`${SCRAPER_SERVICE_URL}/stop`, {
+      method: 'POST'
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(`Scraper service error: ${errorData.error || response.statusText}`);
-    }
-
-    const result = await response.json();
 
     res.json({
       message: 'Scraper stop requested via scraper service',
@@ -111,7 +139,7 @@ router.post('/stop', adminAuth, async (_req, res, next) => {
     console.error('❌ Failed to stop scraper service:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    if (errorMessage.includes('fetch')) {
+    if (errorMessage.includes('Request failed')) {
       return next(createError('Scraper service unavailable', 503));
     }
 
