@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && cd frontend && npm run build && cd ../backend && npm install && npx prisma generate && npm run build"
+
+[deploy]
+startCommand = "cd backend && echo 'Starting deployment...' && npx prisma db push --accept-data-loss --force-reset && echo 'Database schema pushed, skipping seed for now' && echo 'Starting server...' && node dist/server.js"
+
+[[services]]
+name = "backend"
+
+[services.variables]
+NODE_ENV = "production"
+PORT = "${{ PORT }}"

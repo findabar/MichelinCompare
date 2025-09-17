@@ -270,10 +270,15 @@ const restaurants = [
 async function main() {
   console.log('Starting database seed...');
 
-  // Clear existing data
-  await prisma.userVisit.deleteMany();
-  await prisma.restaurant.deleteMany();
-  await prisma.user.deleteMany();
+  try {
+    // Clear existing data (only if tables exist)
+    await prisma.userVisit.deleteMany();
+    await prisma.restaurant.deleteMany();
+    await prisma.user.deleteMany();
+    console.log('Cleared existing data');
+  } catch (error) {
+    console.log('Tables may not exist yet, continuing with seeding...');
+  }
 
   // Seed restaurants
   for (const restaurant of restaurants) {
