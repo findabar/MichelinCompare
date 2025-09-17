@@ -84,11 +84,12 @@ router.post('/start', adminAuth, async (req, res, next) => {
         } catch (seedError) {
           console.error('❌ Seeding failed:', seedError);
           scraperStatus.isRunning = false;
-          scraperStatus.error = `Seeding failed: ${seedError.message}`;
+          const errorMessage = seedError instanceof Error ? seedError.message : String(seedError);
+          scraperStatus.error = `Seeding failed: ${errorMessage}`;
           scraperStatus.lastResult = {
             success: false,
             timestamp: new Date(),
-            error: seedError.message
+            error: errorMessage
           };
         }
       } else {
@@ -105,11 +106,12 @@ router.post('/start', adminAuth, async (req, res, next) => {
     scraperProcess.on('error', (error) => {
       console.error('❌ Failed to start scraper:', error);
       scraperStatus.isRunning = false;
-      scraperStatus.error = `Failed to start: ${error.message}`;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      scraperStatus.error = `Failed to start: ${errorMessage}`;
       scraperStatus.lastResult = {
         success: false,
         timestamp: new Date(),
-        error: error.message
+        error: errorMessage
       };
     });
 
@@ -121,13 +123,14 @@ router.post('/start', adminAuth, async (req, res, next) => {
 
   } catch (error) {
     scraperStatus.isRunning = false;
-    scraperStatus.error = error.message;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    scraperStatus.error = errorMessage;
     next(error);
   }
 });
 
 // GET /api/scraper/status - Get current scraper status
-router.get('/status', (req, res) => {
+router.get('/status', (_req, res) => {
   res.json({
     isRunning: scraperStatus.isRunning,
     lastRun: scraperStatus.lastRun,
