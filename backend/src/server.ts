@@ -46,6 +46,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/debug/env', (_req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV,
+    JWT_SECRET_EXISTS: !!process.env.JWT_SECRET,
+    JWT_SECRET_LENGTH: process.env.JWT_SECRET?.length || 0,
+    DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
+    PORT: process.env.PORT,
+    FRONTEND_URL: process.env.FRONTEND_URL
+  });
+});
+
 // Serve static files from frontend build
 const frontendDistPath = path.join(process.cwd(), '../frontend/dist');
 app.use(express.static(frontendDistPath));
