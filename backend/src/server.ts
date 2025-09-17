@@ -11,6 +11,7 @@ import restaurantRoutes from './routes/restaurants';
 import userRoutes from './routes/users';
 import visitRoutes from './routes/visits';
 import leaderboardRoutes from './routes/leaderboard';
+import scraperRoutes from './routes/scraper';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -41,6 +42,7 @@ app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/visits', visitRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/scraper', scraperRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
