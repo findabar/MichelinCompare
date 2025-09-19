@@ -307,11 +307,13 @@ class LocationUpdater {
       const cityVariations = await prisma.restaurant.groupBy({
         by: ['city'],
         _count: { city: true },
+        orderBy: { _count: { city: 'desc' } },
         take: 10
       });
       const countryVariations = await prisma.restaurant.groupBy({
         by: ['country'],
         _count: { country: true },
+        orderBy: { _count: { country: 'desc' } },
         take: 10
       });
 
