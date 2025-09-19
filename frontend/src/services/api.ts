@@ -54,6 +54,9 @@ export const restaurantAPI = {
   getFilterOptions: () =>
     api.get<FilterOptions>('/restaurants/filters'),
 
+  updateRestaurant: (id: string, data: Partial<Restaurant>) =>
+    api.put<{ success: boolean; message: string; restaurant: Restaurant }>(`/restaurants/${id}`, data),
+
   deleteRestaurant: (id: string) =>
     api.delete<{ success: boolean; message: string; deletedVisits: number }>(`/restaurants/${id}`),
 };

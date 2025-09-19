@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Star, MapPin, User, Plus, Trash2 } from 'lucide-react';
+import { Star, MapPin, User, Plus, Trash2, Edit3, Save, X } from 'lucide-react';
 import { restaurantAPI, visitAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -13,12 +13,23 @@ interface VisitForm {
   notes: string;
 }
 
+interface EditForm {
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+  cuisineType: string;
+  michelinStars: number;
+  description: string;
+}
+
 const RestaurantDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showVisitForm, setShowVisitForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const queryClient = useQueryClient();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<VisitForm>({
@@ -27,6 +38,8 @@ const RestaurantDetailPage = () => {
       notes: '',
     },
   });
+
+  const { register: registerEdit, handleSubmit: handleSubmitEdit, reset: resetEdit, setValue, formState: { errors: editErrors } } = useForm<EditForm>();
 
   const { data: restaurant, isLoading } = useQuery(
     ['restaurant', id],
@@ -63,6 +76,20 @@ const RestaurantDetailPage = () => {
     },
   });
 
+  const updateRestaurantMutation = useMutation(
+    (data: EditForm) => restaurantAPI.updateRestaurant(id!, data),
+    {
+      onSuccess: (data) => {
+        toast.success(data.data.message);
+        queryClient.invalidateQueries(['restaurant', id]);
+        setIsEditing(false);
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.error || 'Failed to update restaurant');
+      },
+    }
+  );
+
   const onSubmitVisit = (data: VisitForm) => {
     createVisitMutation.mutate({
       restaurantId: id!,
@@ -75,6 +102,29 @@ const RestaurantDetailPage = () => {
     if (id) {
       deleteRestaurantMutation.mutate(id);
     }
+  };
+
+  const handleEditStart = () => {
+    if (restaurant?.data) {
+      const data = restaurant.data;
+      setValue('name', data.name);
+      setValue('address', data.address || '');
+      setValue('city', data.city);
+      setValue('country', data.country);
+      setValue('cuisineType', data.cuisineType);
+      setValue('michelinStars', data.michelinStars);
+      setValue('description', data.description || '');
+      setIsEditing(true);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    resetEdit();
+  };
+
+  const onSubmitEdit = (data: EditForm) => {
+    updateRestaurantMutation.mutate(data);
   };
 
   if (isLoading) {
@@ -100,57 +150,186 @@ const RestaurantDetailPage = () => {
       {/* Header */}
       <div className="card">
         <div className="flex justify-between items-start mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{restaurantData.name}</h1>
-            <div className="flex items-center space-x-4 text-gray-600">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                <span>{restaurantData.address}</span>
+          <div className="flex-1 mr-4">
+            {!isEditing ? (
+              <>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{restaurantData.name}</h1>
+                <div className="flex items-center space-x-4 text-gray-600">
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    <span>{restaurantData.address}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  {...registerEdit('name', { required: 'Name is required' })}
+                  className="text-3xl font-bold text-gray-900 bg-transparent border-b-2 border-blue-300 focus:border-blue-500 outline-none w-full"
+                  placeholder="Restaurant name"
+                />
+                {editErrors.name && (
+                  <p className="text-sm text-red-600">{editErrors.name.message}</p>
+                )}
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4 text-gray-600" />
+                  <input
+                    {...registerEdit('address')}
+                    className="flex-1 text-gray-600 bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none"
+                    placeholder="Address"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="flex text-yellow-400">
-                {[...Array(restaurantData.michelinStars)].map((_, i) => (
-                  <Star key={i} className="h-6 w-6 fill-current" />
-                ))}
+            {!isEditing ? (
+              <div className="flex items-center space-x-2">
+                <div className="flex text-yellow-400">
+                  {[...Array(restaurantData.michelinStars)].map((_, i) => (
+                    <Star key={i} className="h-6 w-6 fill-current" />
+                  ))}
+                </div>
+                <span className="text-lg font-semibold text-gray-900">
+                  {restaurantData.michelinStars} Star{restaurantData.michelinStars !== 1 ? 's' : ''}
+                </span>
               </div>
-              <span className="text-lg font-semibold text-gray-900">
-                {restaurantData.michelinStars} Star{restaurantData.michelinStars !== 1 ? 's' : ''}
-              </span>
-            </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <select
+                  {...registerEdit('michelinStars', { required: 'Stars are required', valueAsNumber: true })}
+                  className="text-lg font-semibold text-gray-900 bg-white border border-gray-300 rounded-md px-3 py-1 focus:border-blue-500 outline-none"
+                >
+                  <option value={1}>1 Star</option>
+                  <option value={2}>2 Stars</option>
+                  <option value={3}>3 Stars</option>
+                </select>
+              </div>
+            )}
             {user && (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete restaurant"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
+              <div className="flex items-center space-x-2">
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    onClick={handleEditStart}
+                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Edit restaurant"
+                  >
+                    <Edit3 className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleSubmitEdit(onSubmitEdit)}
+                      disabled={updateRestaurantMutation.isLoading}
+                      className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                      title="Save changes"
+                    >
+                      <Save className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEditCancel}
+                      disabled={updateRestaurantMutation.isLoading}
+                      className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50"
+                      title="Cancel editing"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Delete restaurant"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2">Cuisine Type</h3>
-            <p className="text-primary-600 font-medium">{restaurantData.cuisineType}</p>
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2">Location</h3>
-            <p className="text-gray-600">{restaurantData.city}, {restaurantData.country}</p>
-          </div>
-          {restaurantData.description && (
-            <div className="md:col-span-2">
-              <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-              <p className="text-gray-600">{restaurantData.description}</p>
+        {!isEditing ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Cuisine Type</h3>
+              <p className="text-primary-600 font-medium">{restaurantData.cuisineType}</p>
             </div>
-          )}
-        </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Location</h3>
+              <p className="text-gray-600">{restaurantData.city}, {restaurantData.country}</p>
+            </div>
+            {restaurantData.description && (
+              <div className="md:col-span-2">
+                <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
+                <p className="text-gray-600">{restaurantData.description}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmitEdit(onSubmitEdit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cuisine Type *
+                </label>
+                <input
+                  {...registerEdit('cuisineType', { required: 'Cuisine type is required' })}
+                  className="input-field"
+                  placeholder="e.g. French, Japanese, Italian"
+                />
+                {editErrors.cuisineType && (
+                  <p className="mt-1 text-sm text-red-600">{editErrors.cuisineType.message}</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    City *
+                  </label>
+                  <input
+                    {...registerEdit('city', { required: 'City is required' })}
+                    className="input-field"
+                    placeholder="City"
+                  />
+                  {editErrors.city && (
+                    <p className="mt-1 text-sm text-red-600">{editErrors.city.message}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Country *
+                  </label>
+                  <input
+                    {...registerEdit('country', { required: 'Country is required' })}
+                    className="input-field"
+                    placeholder="Country"
+                  />
+                  {editErrors.country && (
+                    <p className="mt-1 text-sm text-red-600">{editErrors.country.message}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                {...registerEdit('description')}
+                rows={4}
+                className="input-field"
+                placeholder="Restaurant description (optional)"
+              />
+            </div>
+          </form>
+        )}
 
         {/* Visit Action */}
-        {user && (
+        {user && !isEditing && (
           <div className="mt-6 pt-6 border-t">
             {hasVisited ? (
               <div className="flex items-center space-x-2 text-green-600">
@@ -166,6 +345,7 @@ const RestaurantDetailPage = () => {
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowVisitForm(!showVisitForm)}
                   className="btn-primary flex items-center space-x-2"
                 >

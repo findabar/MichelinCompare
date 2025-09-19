@@ -134,6 +134,59 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+router.put('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, address, city, country, cuisineType, michelinStars, description } = req.body;
+
+    // Check if restaurant exists
+    const existingRestaurant = await prisma.restaurant.findUnique({
+      where: { id },
+    });
+
+    if (!existingRestaurant) {
+      return next(createError('Restaurant not found', 404));
+    }
+
+    // Update restaurant
+    const updatedRestaurant = await prisma.restaurant.update({
+      where: { id },
+      data: {
+        name: name || existingRestaurant.name,
+        address: address || existingRestaurant.address,
+        city: city || existingRestaurant.city,
+        country: country || existingRestaurant.country,
+        cuisineType: cuisineType || existingRestaurant.cuisineType,
+        michelinStars: michelinStars !== undefined ? michelinStars : existingRestaurant.michelinStars,
+        description: description !== undefined ? description : existingRestaurant.description,
+      },
+      include: {
+        visits: {
+          include: {
+            user: {
+              select: {
+                username: true,
+              },
+            },
+          },
+          orderBy: {
+            dateVisited: 'desc',
+          },
+          take: 10,
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `Restaurant "${updatedRestaurant.name}" updated successfully`,
+      restaurant: updatedRestaurant,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
