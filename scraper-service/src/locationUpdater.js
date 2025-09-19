@@ -286,6 +286,44 @@ class LocationUpdater {
 
     try {
       console.log('🔍 Finding restaurants with unknown locations or needing verification...');
+      console.log('🔧 DEBUG: Database connection test...');
+
+      // First, let's check the total number of restaurants
+      const totalRestaurants = await prisma.restaurant.count();
+      console.log(`🔧 DEBUG: Total restaurants in database: ${totalRestaurants}`);
+
+      // Check for various patterns of unknown data
+      const unknownCityCount = await prisma.restaurant.count({
+        where: { city: 'Unknown City' }
+      });
+      const unknownCountryCount = await prisma.restaurant.count({
+        where: { country: 'Unknown Country' }
+      });
+
+      console.log(`🔧 DEBUG: Restaurants with "Unknown City": ${unknownCityCount}`);
+      console.log(`🔧 DEBUG: Restaurants with "Unknown Country": ${unknownCountryCount}`);
+
+      // Let's also check for other variations
+      const cityVariations = await prisma.restaurant.groupBy({
+        by: ['city'],
+        _count: { city: true },
+        take: 10
+      });
+      const countryVariations = await prisma.restaurant.groupBy({
+        by: ['country'],
+        _count: { country: true },
+        take: 10
+      });
+
+      console.log('🔧 DEBUG: Top 10 city values:');
+      cityVariations.forEach(item => {
+        console.log(`  "${item.city}": ${item._count.city} restaurants`);
+      });
+
+      console.log('🔧 DEBUG: Top 10 country values:');
+      countryVariations.forEach(item => {
+        console.log(`  "${item.country}": ${item._count.country} restaurants`);
+      });
 
       // Find restaurants that have "Unknown City" or "Unknown Country"
       const restaurantsToCheck = await prisma.restaurant.findMany({
@@ -325,20 +363,44 @@ class LocationUpdater {
         console.log(`\n🏪 Checking ${i + 1}/${restaurantsToCheck.length}: ${restaurant.name}`);
 
         try {
+          console.log(`🔧 DEBUG: Current restaurant data:`, {
+            id: restaurant.id,
+            name: restaurant.name,
+            city: restaurant.city,
+            country: restaurant.country,
+            cuisineType: restaurant.cuisineType
+          });
+
           const michelinDetails = await this.searchRestaurantOnMichelin(restaurant.name);
+          console.log(`🔧 DEBUG: Michelin search result:`, michelinDetails);
 
           if (michelinDetails) {
             const updateData = {};
             const changes = [];
 
+            console.log(`🔧 DEBUG: Checking city update condition:`);
+            console.log(`  Current city: "${restaurant.city}"`);
+            console.log(`  Found city: "${michelinDetails.city}"`);
+            console.log(`  City === "Unknown City": ${restaurant.city === 'Unknown City'}`);
+            console.log(`  Found city !== "Unknown City": ${michelinDetails.city !== 'Unknown City'}`);
+
             // Update location only if current values are "Unknown"
             if (restaurant.city === 'Unknown City' && michelinDetails.city !== 'Unknown City') {
               updateData.city = michelinDetails.city;
               changes.push(`city: "${michelinDetails.city}"`);
+              console.log(`🔧 DEBUG: Will update city to "${michelinDetails.city}"`);
             }
+
+            console.log(`🔧 DEBUG: Checking country update condition:`);
+            console.log(`  Current country: "${restaurant.country}"`);
+            console.log(`  Found country: "${michelinDetails.country}"`);
+            console.log(`  Country === "Unknown Country": ${restaurant.country === 'Unknown Country'}`);
+            console.log(`  Found country !== "Unknown Country": ${michelinDetails.country !== 'Unknown Country'}`);
+
             if (restaurant.country === 'Unknown Country' && michelinDetails.country !== 'Unknown Country') {
               updateData.country = michelinDetails.country;
               changes.push(`country: "${michelinDetails.country}"`);
+              console.log(`🔧 DEBUG: Will update country to "${michelinDetails.country}"`);
             }
 
             // Update cuisine if it's different and we found a valid one
@@ -348,14 +410,21 @@ class LocationUpdater {
                 michelinDetails.cuisine.length > 2) {
               updateData.cuisineType = michelinDetails.cuisine;
               changes.push(`cuisine: "${restaurant.cuisineType}" → "${michelinDetails.cuisine}"`);
+              console.log(`🔧 DEBUG: Will update cuisine to "${michelinDetails.cuisine}"`);
             }
 
+            console.log(`🔧 DEBUG: Update data:`, updateData);
+            console.log(`🔧 DEBUG: Changes:`, changes);
+
             if (Object.keys(updateData).length > 0) {
-              await prisma.restaurant.update({
+              console.log(`🔧 DEBUG: Executing database update for restaurant ID: ${restaurant.id}`);
+
+              const updateResult = await prisma.restaurant.update({
                 where: { id: restaurant.id },
                 data: updateData
               });
 
+              console.log(`🔧 DEBUG: Database update result:`, updateResult);
               console.log(`✅ Updated ${restaurant.name}: ${changes.join(', ')}`);
               updateSummary.push({
                 name: restaurant.name,
@@ -364,7 +433,7 @@ class LocationUpdater {
               });
               updatedCount++;
             } else {
-              console.log(`⏭️  No updates needed for ${restaurant.name}`);
+              console.log(`⏭️  No updates needed for ${restaurant.name} (no changes to make)`);
             }
           } else {
             console.log(`⏭️  Skipping ${restaurant.name}: not found on Michelin Guide`);
