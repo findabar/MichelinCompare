@@ -3,6 +3,7 @@ const cors = require('cors');
 const MichelinScraper = require('./scraper');
 const { seedDatabase } = require('./seeder');
 const { LocationUpdater } = require('./locationUpdater');
+const { TestLocationUpdater } = require('./testLocationUpdater');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -160,6 +161,40 @@ app.post('/stop-location-update', (req, res) => {
   res.json({ message: 'Location update stopped' });
 });
 
+// Test single restaurant location lookup
+app.post('/test-restaurant', async (req, res) => {
+  try {
+    const { restaurantName } = req.body;
+
+    if (!restaurantName) {
+      return res.status(400).json({
+        error: 'Restaurant name is required',
+        example: { restaurantName: 'Le Bernardin' }
+      });
+    }
+
+    console.log(`🧪 Testing restaurant lookup for: ${restaurantName}`);
+
+    const tester = new TestLocationUpdater();
+    const result = await tester.testSingleRestaurant(restaurantName);
+
+    res.json({
+      success: true,
+      restaurantName,
+      result,
+      timestamp: new Date()
+    });
+
+  } catch (error) {
+    console.error('❌ Restaurant test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
 async function runScrapingProcess(starLevels = [3, 2, 1]) {
   try {
     scraperStatus.progress = 'Initializing scraper...';
@@ -261,4 +296,5 @@ app.listen(PORT, () => {
   console.log(`   POST /stop                - Stop scraping process`);
   console.log(`   POST /update-locations    - Start location update process`);
   console.log(`   POST /stop-location-update - Stop location update process`);
+  console.log(`   POST /test-restaurant     - Test single restaurant lookup`);
 });
