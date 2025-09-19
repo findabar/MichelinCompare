@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Star, MapPin, Calendar, User, Plus } from 'lucide-react';
+import { Star, MapPin, User, Plus, Trash2 } from 'lucide-react';
 import { restaurantAPI, visitAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -16,7 +16,9 @@ interface VisitForm {
 const RestaurantDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [showVisitForm, setShowVisitForm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const queryClient = useQueryClient();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<VisitForm>({
@@ -51,12 +53,28 @@ const RestaurantDetailPage = () => {
     },
   });
 
+  const deleteRestaurantMutation = useMutation(restaurantAPI.deleteRestaurant, {
+    onSuccess: (data) => {
+      toast.success(data.data.message);
+      navigate('/restaurants');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete restaurant');
+    },
+  });
+
   const onSubmitVisit = (data: VisitForm) => {
     createVisitMutation.mutate({
       restaurantId: id!,
       dateVisited: data.dateVisited,
       notes: data.notes,
     });
+  };
+
+  const handleDeleteRestaurant = () => {
+    if (id) {
+      deleteRestaurantMutation.mutate(id);
+    }
   };
 
   if (isLoading) {
@@ -89,21 +107,28 @@ const RestaurantDetailPage = () => {
                 <MapPin className="h-4 w-4 mr-1" />
                 <span>{restaurantData.address}</span>
               </div>
-              <div className="flex items-center">
-                <Calendar className="h-4 w-4 mr-1" />
-                <span>Awarded {restaurantData.yearAwarded}</span>
-              </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="flex text-yellow-400">
-              {[...Array(restaurantData.michelinStars)].map((_, i) => (
-                <Star key={i} className="h-6 w-6 fill-current" />
-              ))}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <div className="flex text-yellow-400">
+                {[...Array(restaurantData.michelinStars)].map((_, i) => (
+                  <Star key={i} className="h-6 w-6 fill-current" />
+                ))}
+              </div>
+              <span className="text-lg font-semibold text-gray-900">
+                {restaurantData.michelinStars} Star{restaurantData.michelinStars !== 1 ? 's' : ''}
+              </span>
             </div>
-            <span className="text-lg font-semibold text-gray-900">
-              {restaurantData.michelinStars} Star{restaurantData.michelinStars !== 1 ? 's' : ''}
-            </span>
+            {user && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete restaurant"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -243,6 +268,36 @@ const RestaurantDetailPage = () => {
             <Link to="/login" className="btn-secondary">
               Log In
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Delete Restaurant</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{restaurantData.name}"? This will also delete all user visits associated with this restaurant. This action cannot be undone.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={handleDeleteRestaurant}
+                disabled={deleteRestaurantMutation.isLoading}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                {deleteRestaurantMutation.isLoading ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteRestaurantMutation.isLoading}
+                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -53,6 +53,9 @@ export const restaurantAPI = {
 
   getFilterOptions: () =>
     api.get<FilterOptions>('/restaurants/filters'),
+
+  deleteRestaurant: (id: string) =>
+    api.delete<{ success: boolean; message: string; deletedVisits: number }>(`/restaurants/${id}`),
 };
 
 export const visitAPI = {

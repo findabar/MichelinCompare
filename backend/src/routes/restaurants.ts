@@ -134,4 +134,42 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Check if restaurant exists
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      include: {
+        visits: true,
+      },
+    });
+
+    if (!restaurant) {
+      return next(createError('Restaurant not found', 404));
+    }
+
+    // Delete all visits associated with this restaurant first
+    if (restaurant.visits.length > 0) {
+      await prisma.userVisit.deleteMany({
+        where: { restaurantId: id },
+      });
+    }
+
+    // Then delete the restaurant
+    await prisma.restaurant.delete({
+      where: { id },
+    });
+
+    res.json({
+      success: true,
+      message: `Restaurant "${restaurant.name}" and ${restaurant.visits.length} associated visits deleted successfully`,
+      deletedVisits: restaurant.visits.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
