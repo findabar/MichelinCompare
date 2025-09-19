@@ -47,10 +47,10 @@ class LocationUpdater {
     });
 
     try {
-      // Search on Michelin Guide website
-      const searchUrl = `https://guide.michelin.com/en/search?q=${encodeURIComponent(restaurantName)}`;
+      // Use GB restaurants search endpoint
+      const searchUrl = `https://guide.michelin.com/gb/en/restaurants?q=${encodeURIComponent(restaurantName)}`;
 
-      console.log(`🔍 Searching Michelin Guide for: ${restaurantName}`);
+      console.log(`🔍 Searching Michelin Guide GB restaurants for: ${restaurantName}`);
       console.log(`🔧 DEBUG: Search URL: ${searchUrl}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
@@ -87,8 +87,8 @@ class LocationUpdater {
         // Could save screenshot here if needed: await page.screenshot({path: `/tmp/debug-${Date.now()}.png`});
       }
 
-      // Look for restaurant cards in search results
-      const restaurantDetails = await page.evaluate((searchName) => {
+      // Look for restaurant cards in search results and extract all matching restaurants
+      const allRestaurantMatches = await page.evaluate((searchName) => {
         console.log(`🔧 DEBUG: Starting page evaluation for: ${searchName}`);
 
         // Try different selectors for restaurant cards
@@ -118,176 +118,126 @@ class LocationUpdater {
         console.log(`🔧 DEBUG: Final result - Found ${cards.length} cards with selector: ${foundSelector}`);
 
         if (cards.length === 0) {
-          console.log(`🔧 DEBUG: No cards found, returning null`);
-          return null;
+          console.log(`🔧 DEBUG: No cards found, returning empty array`);
+          return [];
         }
 
-        // Find the best matching restaurant card
-        for (const card of cards) {
-          const nameElement = card.querySelector('h3, h2, .card__menu-content h3, .restaurant-name, .poi-name, .title');
+        const matchedRestaurants = [];
 
-          if (nameElement) {
-            const cardName = nameElement.textContent.trim();
+        // Extract all restaurant cards that match our search
+        cards.forEach((card, index) => {
+          try {
+            const nameElement = card.querySelector('h3, h2, .card__menu-content h3, .restaurant-name, .poi-name, .title');
 
-            // Check if this card matches our search (case insensitive, partial match)
-            if (cardName.toLowerCase().includes(searchName.toLowerCase()) ||
-                searchName.toLowerCase().includes(cardName.toLowerCase())) {
+            if (nameElement) {
+              const cardName = nameElement.textContent.trim();
 
-              // Get the restaurant URL for detailed page
-              const linkElement = card.querySelector('a[href*="/restaurant/"], a[href*="/establishment/"]');
+              // Check if this card matches our search (case insensitive, partial match)
+              if (cardName.toLowerCase().includes(searchName.toLowerCase()) ||
+                  searchName.toLowerCase().includes(cardName.toLowerCase())) {
 
-              if (linkElement) {
-                const href = linkElement.getAttribute('href');
-                const fullUrl = href.startsWith('http') ? href : `https://guide.michelin.com${href}`;
+                // Get location information
+                const locationSelectors = [
+                  '.card__menu-footer--location',
+                  '.location',
+                  '.address',
+                  '.city',
+                  '.poi-location',
+                  '[data-location]',
+                  '.card__menu-footer',
+                  '.poi-address',
+                  '.restaurant-location'
+                ];
 
-                return {
+                let locationText = '';
+                for (const sel of locationSelectors) {
+                  const locationEl = card.querySelector(sel);
+                  if (locationEl && locationEl.textContent?.trim()) {
+                    locationText = locationEl.textContent.trim();
+                    break;
+                  }
+                }
+
+                // Get cuisine information
+                const cuisineSelectors = [
+                  '.card__menu-content--subtitle',
+                  '.cuisine',
+                  '.cuisine-type',
+                  '.category',
+                  '.poi-category',
+                  '.card__menu-content .subtitle',
+                  '.restaurant-cuisine'
+                ];
+
+                let cuisineText = '';
+                for (const sel of cuisineSelectors) {
+                  const cuisineEl = card.querySelector(sel);
+                  if (cuisineEl && cuisineEl.textContent?.trim()) {
+                    cuisineText = cuisineEl.textContent.trim();
+                    break;
+                  }
+                }
+
+                // Get restaurant URL
+                const linkElement = card.querySelector('a[href*="/restaurant/"], a[href*="/establishment/"]');
+                const restaurantUrl = linkElement ?
+                  (linkElement.getAttribute('href').startsWith('http') ?
+                    linkElement.getAttribute('href') :
+                    `https://guide.michelin.com${linkElement.getAttribute('href')}`) : null;
+
+                console.log(`🔧 DEBUG: Found restaurant ${index + 1}: ${cardName}, Location: ${locationText}, Cuisine: ${cuisineText}`);
+
+                matchedRestaurants.push({
                   name: cardName,
-                  url: fullUrl,
-                  found: true
-                };
+                  rawLocation: locationText,
+                  cuisine: cuisineText,
+                  url: restaurantUrl
+                });
               }
             }
+          } catch (error) {
+            console.log(`🔧 DEBUG: Error processing card ${index}:`, error.message);
           }
-        }
+        });
 
-        return null;
+        console.log(`🔧 DEBUG: Total matched restaurants: ${matchedRestaurants.length}`);
+        return matchedRestaurants;
       }, restaurantName);
 
-      if (!restaurantDetails) {
-        console.log(`⚠️  Restaurant not found on Michelin Guide search: ${restaurantName}`);
-        console.log(`🔧 DEBUG: Trying alternative approach...`);
-
-        // Try alternative search approach - maybe direct restaurant listing pages
-        try {
-          const alternativeUrl = `https://guide.michelin.com/en/restaurants`;
-          console.log(`🔧 DEBUG: Trying alternative URL: ${alternativeUrl}`);
-
-          await page.goto(alternativeUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          const altPageInfo = await page.evaluate(() => {
-            return {
-              title: document.title,
-              hasRestaurants: document.querySelectorAll('.card__menu, .restaurant-card, a[href*="/restaurant/"]').length,
-              bodyPreview: document.body.innerText.substring(0, 500)
-            };
-          });
-
-          console.log(`🔧 DEBUG: Alternative page info:`, altPageInfo);
-        } catch (altError) {
-          console.log(`🔧 DEBUG: Alternative approach also failed:`, altError.message);
-        }
-
+      if (!allRestaurantMatches || allRestaurantMatches.length === 0) {
+        console.log(`⚠️  No restaurants found for: ${restaurantName}`);
         return null;
       }
 
-      console.log(`✅ Found restaurant on Michelin Guide: ${restaurantDetails.name}`);
-      console.log(`🔗 Restaurant URL: ${restaurantDetails.url}`);
+      console.log(`✅ Found ${allRestaurantMatches.length} restaurant(s) for: ${restaurantName}`);
 
-      // Now visit the restaurant's detailed page
-      await page.goto(restaurantDetails.url, { waitUntil: 'networkidle2', timeout: 30000 });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Process all matches and return the first one with additional matches for database insertion
+      const processedRestaurants = [];
 
-      // Extract location and cuisine from the restaurant page
-      const pageDetails = await page.evaluate(() => {
-        // Look for restaurant name (usually in h1 or main heading)
-        const nameElement = document.querySelector('h1, .restaurant-name, .poi-name, .page-title');
-        const name = nameElement ? nameElement.textContent.trim() : null;
+      for (let i = 0; i < allRestaurantMatches.length; i++) {
+        const match = allRestaurantMatches[i];
+        console.log(`🔧 DEBUG: Processing match ${i + 1}: ${match.name}`);
 
-        // Look for location/address information (usually right after the name)
-        const locationSelectors = [
-          '.restaurant-details__location',
-          '.poi-address',
-          '.address',
-          '.location',
-          '.restaurant-location',
-          '.card__menu-footer--location',
-          '[data-restaurant-address]',
-          '.restaurant-address'
-        ];
+        // Parse location
+        const parsedLocation = this.parseLocation(match.rawLocation);
 
-        let location = null;
-        for (const selector of locationSelectors) {
-          const locationElement = document.querySelector(selector);
-          if (locationElement && locationElement.textContent.trim()) {
-            location = locationElement.textContent.trim();
-            break;
-          }
-        }
-
-        // If no specific location element, try to find address-like text near the restaurant name
-        if (!location) {
-          const possibleAddressElements = document.querySelectorAll('div, p, span');
-          for (const element of possibleAddressElements) {
-            const text = element.textContent.trim();
-            // Look for address-like patterns (contains comma, reasonable length)
-            if (text.includes(',') && text.length > 10 && text.length < 200 &&
-                !text.includes('Michelin') && !text.includes('stars') &&
-                !text.includes('restaurant') && !text.toLowerCase().includes('cuisine')) {
-              location = text;
-              break;
-            }
-          }
-        }
-
-        // Look for cuisine type information
-        const cuisineSelectors = [
-          '.restaurant-details__cuisine',
-          '.cuisine-type',
-          '.cuisine',
-          '.category',
-          '.poi-category',
-          '.card__menu-content--subtitle',
-          '.restaurant-cuisine',
-          '[data-restaurant-cuisine]'
-        ];
-
-        let cuisine = null;
-        for (const selector of cuisineSelectors) {
-          const cuisineElement = document.querySelector(selector);
-          if (cuisineElement && cuisineElement.textContent.trim()) {
-            cuisine = cuisineElement.textContent.trim();
-            break;
-          }
-        }
-
-        // If no specific cuisine element, look for cuisine-related text
-        if (!cuisine) {
-          const textElements = document.querySelectorAll('div, p, span');
-          for (const element of textElements) {
-            const text = element.textContent.trim();
-            // Look for common cuisine patterns
-            if ((text.includes('cuisine') || text.includes('Cuisine')) && text.length < 100) {
-              cuisine = text.replace(/cuisine/gi, '').replace(/\s+/g, ' ').trim();
-              if (cuisine.length > 0) break;
-            }
-          }
-        }
-
-        return {
-          name,
-          location,
-          cuisine,
-          pageUrl: window.location.href
-        };
-      });
-
-      if (pageDetails.location) {
-        // Parse location to extract city and country
-        const parsedLocation = this.parseLocation(pageDetails.location);
-
-        return {
-          name: pageDetails.name,
+        const processedRestaurant = {
+          name: match.name,
           city: parsedLocation.city,
           country: parsedLocation.country,
-          cuisine: pageDetails.cuisine,
-          rawLocation: pageDetails.location,
-          url: pageDetails.pageUrl
+          cuisine: match.cuisine || 'Contemporary',
+          rawLocation: match.rawLocation,
+          url: match.url,
+          isMainMatch: i === 0 // First match is used to update existing restaurant
         };
-      } else {
-        console.log(`⚠️  No location found on restaurant page for: ${restaurantName}`);
-        return null;
+
+        processedRestaurants.push(processedRestaurant);
       }
+
+      return {
+        restaurants: processedRestaurants,
+        totalFound: allRestaurantMatches.length
+      };
 
     } catch (error) {
       console.error(`❌ Error checking Michelin Guide for ${restaurantName}:`, error.message);
@@ -453,69 +403,112 @@ class LocationUpdater {
             cuisineType: restaurant.cuisineType
           });
 
-          const michelinDetails = await this.searchRestaurantOnMichelin(restaurant.name);
-          console.log(`🔧 DEBUG: Michelin search result:`, michelinDetails);
+          const michelinSearchResult = await this.searchRestaurantOnMichelin(restaurant.name);
+          console.log(`🔧 DEBUG: Michelin search result:`, michelinSearchResult);
 
-          if (michelinDetails) {
+          if (michelinSearchResult && michelinSearchResult.restaurants && michelinSearchResult.restaurants.length > 0) {
+            const mainMatch = michelinSearchResult.restaurants[0]; // First match for updating existing restaurant
+            const additionalMatches = michelinSearchResult.restaurants.slice(1); // Additional matches to add as new restaurants
+
+            // Update the existing restaurant
             const updateData = {};
             const changes = [];
 
-            console.log(`🔧 DEBUG: Checking city update condition:`);
-            console.log(`  Current city: "${restaurant.city}"`);
-            console.log(`  Found city: "${michelinDetails.city}"`);
-            console.log(`  City === "Unknown City": ${restaurant.city === 'Unknown City'}`);
-            console.log(`  Found city !== "Unknown City": ${michelinDetails.city !== 'Unknown City'}`);
+            console.log(`🔧 DEBUG: Processing main match:`, mainMatch);
 
             // Update location only if current values are "Unknown"
-            if (restaurant.city === 'Unknown City' && michelinDetails.city !== 'Unknown City') {
-              updateData.city = michelinDetails.city;
-              changes.push(`city: "${michelinDetails.city}"`);
-              console.log(`🔧 DEBUG: Will update city to "${michelinDetails.city}"`);
+            if (restaurant.city === 'Unknown City' && mainMatch.city !== 'Unknown City') {
+              updateData.city = mainMatch.city;
+              changes.push(`city: "${mainMatch.city}"`);
+              console.log(`🔧 DEBUG: Will update city to "${mainMatch.city}"`);
             }
 
-            console.log(`🔧 DEBUG: Checking country update condition:`);
-            console.log(`  Current country: "${restaurant.country}"`);
-            console.log(`  Found country: "${michelinDetails.country}"`);
-            console.log(`  Country === "Unknown Country": ${restaurant.country === 'Unknown Country'}`);
-            console.log(`  Found country !== "Unknown Country": ${michelinDetails.country !== 'Unknown Country'}`);
-
-            if (restaurant.country === 'Unknown Country' && michelinDetails.country !== 'Unknown Country') {
-              updateData.country = michelinDetails.country;
-              changes.push(`country: "${michelinDetails.country}"`);
-              console.log(`🔧 DEBUG: Will update country to "${michelinDetails.country}"`);
+            if (restaurant.country === 'Unknown Country' && mainMatch.country !== 'Unknown Country') {
+              updateData.country = mainMatch.country;
+              changes.push(`country: "${mainMatch.country}"`);
+              console.log(`🔧 DEBUG: Will update country to "${mainMatch.country}"`);
             }
 
             // Update cuisine if it's different and we found a valid one
-            if (michelinDetails.cuisine &&
-                michelinDetails.cuisine !== restaurant.cuisineType &&
-                michelinDetails.cuisine.toLowerCase() !== 'cuisine' &&
-                michelinDetails.cuisine.length > 2) {
-              updateData.cuisineType = michelinDetails.cuisine;
-              changes.push(`cuisine: "${restaurant.cuisineType}" → "${michelinDetails.cuisine}"`);
-              console.log(`🔧 DEBUG: Will update cuisine to "${michelinDetails.cuisine}"`);
+            if (mainMatch.cuisine &&
+                mainMatch.cuisine !== restaurant.cuisineType &&
+                mainMatch.cuisine.toLowerCase() !== 'cuisine' &&
+                mainMatch.cuisine.length > 2) {
+              updateData.cuisineType = mainMatch.cuisine;
+              changes.push(`cuisine: "${restaurant.cuisineType}" → "${mainMatch.cuisine}"`);
+              console.log(`🔧 DEBUG: Will update cuisine to "${mainMatch.cuisine}"`);
             }
 
             console.log(`🔧 DEBUG: Update data:`, updateData);
-            console.log(`🔧 DEBUG: Changes:`, changes);
 
             if (Object.keys(updateData).length > 0) {
               console.log(`🔧 DEBUG: Executing database update for restaurant ID: ${restaurant.id}`);
 
-              const updateResult = await prisma.restaurant.update({
+              await prisma.restaurant.update({
                 where: { id: restaurant.id },
                 data: updateData
               });
 
-              console.log(`🔧 DEBUG: Database update result:`, updateResult);
+              console.log(`🔧 DEBUG: Database update successful`);
               console.log(`✅ Updated ${restaurant.name}: ${changes.join(', ')}`);
               updateSummary.push({
                 name: restaurant.name,
                 changes: changes,
-                url: michelinDetails.url
+                url: mainMatch.url
               });
               updatedCount++;
-            } else {
-              console.log(`⏭️  No updates needed for ${restaurant.name} (no changes to make)`);
+            }
+
+            // Add additional restaurant matches to the database
+            if (additionalMatches.length > 0) {
+              console.log(`🔧 DEBUG: Found ${additionalMatches.length} additional restaurant(s) to add`);
+
+              for (const additionalMatch of additionalMatches) {
+                try {
+                  // Check if this restaurant already exists (name + location uniqueness)
+                  const existing = await prisma.restaurant.findFirst({
+                    where: {
+                      name: additionalMatch.name,
+                      city: additionalMatch.city,
+                      country: additionalMatch.country
+                    }
+                  });
+
+                  if (!existing) {
+                    await prisma.restaurant.create({
+                      data: {
+                        name: additionalMatch.name,
+                        city: additionalMatch.city,
+                        country: additionalMatch.country,
+                        cuisineType: additionalMatch.cuisine || 'Contemporary',
+                        michelinStars: 1, // Default to 1 star (could be refined later)
+                        yearAwarded: new Date().getFullYear(),
+                        address: additionalMatch.rawLocation || '',
+                        latitude: null,
+                        longitude: null,
+                        description: `Michelin restaurant in ${additionalMatch.city}, ${additionalMatch.country}`,
+                        imageUrl: null
+                      }
+                    });
+
+                    console.log(`➕ Added new restaurant: ${additionalMatch.name} in ${additionalMatch.city}, ${additionalMatch.country}`);
+                    updateSummary.push({
+                      name: additionalMatch.name,
+                      changes: [`added new restaurant in ${additionalMatch.city}, ${additionalMatch.country}`],
+                      url: additionalMatch.url,
+                      isNew: true
+                    });
+                  } else {
+                    console.log(`⏭️  Restaurant already exists: ${additionalMatch.name} in ${additionalMatch.city}`);
+                  }
+                } catch (addError) {
+                  console.error(`❌ Error adding new restaurant ${additionalMatch.name}:`, addError.message);
+                }
+              }
+            }
+
+            if (Object.keys(updateData).length === 0 && additionalMatches.length === 0) {
+              console.log(`⏭️  No updates or additions needed for ${restaurant.name}`);
             }
           } else {
             console.log(`⏭️  Skipping ${restaurant.name}: not found on Michelin Guide`);
