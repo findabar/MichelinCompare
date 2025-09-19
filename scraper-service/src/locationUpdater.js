@@ -35,19 +35,62 @@ class LocationUpdater {
     }
 
     const page = await this.browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+
+    // Set more realistic browser headers
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+    });
 
     try {
       // Search on Michelin Guide website
       const searchUrl = `https://guide.michelin.com/en/search?q=${encodeURIComponent(restaurantName)}`;
 
       console.log(`🔍 Searching Michelin Guide for: ${restaurantName}`);
+      console.log(`🔧 DEBUG: Search URL: ${searchUrl}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Debug: Check page title and content
+      const pageTitle = await page.title();
+      const pageUrl = page.url();
+      console.log(`🔧 DEBUG: Page loaded - Title: "${pageTitle}", URL: ${pageUrl}`);
+
+      // Debug: Check if we got blocked or redirected
+      const pageContent = await page.content();
+      if (pageContent.includes('blocked') || pageContent.includes('captcha') || pageContent.includes('security')) {
+        console.log(`🔧 DEBUG: Possible blocking detected in page content`);
+      }
+
+      // Debug: Check what's actually on the page
+      const debugInfo = await page.evaluate(() => {
+        return {
+          bodyText: document.body.innerText.substring(0, 1000),
+          title: document.title,
+          url: window.location.href,
+          hasCards: document.querySelectorAll('.card__menu, .js-restaurant__list_item, .selection-card, .restaurant-card, .poi-card, .card').length,
+          hasRestaurantLinks: document.querySelectorAll('a[href*="/restaurant/"]').length,
+          allClassNames: Array.from(document.querySelectorAll('*')).map(el => el.className).filter(cn => cn && typeof cn === 'string').slice(0, 50)
+        };
+      });
+
+      console.log(`🔧 DEBUG: Page analysis:`, debugInfo);
+
+      // Take a screenshot for debugging (if needed)
+      if (debugInfo.hasCards === 0 && debugInfo.hasRestaurantLinks === 0) {
+        console.log(`🔧 DEBUG: No restaurant content found, this might be an issue`);
+        // Could save screenshot here if needed: await page.screenshot({path: `/tmp/debug-${Date.now()}.png`});
+      }
+
       // Look for restaurant cards in search results
       const restaurantDetails = await page.evaluate((searchName) => {
+        console.log(`🔧 DEBUG: Starting page evaluation for: ${searchName}`);
+
         // Try different selectors for restaurant cards
         const possibleSelectors = [
           '.card__menu',
@@ -62,15 +105,20 @@ class LocationUpdater {
         let cards = [];
         let foundSelector = null;
 
+        console.log(`🔧 DEBUG: Testing selectors...`);
         for (const selector of possibleSelectors) {
           cards = document.querySelectorAll(selector);
+          console.log(`🔧 DEBUG: Selector "${selector}" found ${cards.length} elements`);
           if (cards.length > 0) {
             foundSelector = selector;
             break;
           }
         }
 
+        console.log(`🔧 DEBUG: Final result - Found ${cards.length} cards with selector: ${foundSelector}`);
+
         if (cards.length === 0) {
+          console.log(`🔧 DEBUG: No cards found, returning null`);
           return null;
         }
 
@@ -106,7 +154,30 @@ class LocationUpdater {
       }, restaurantName);
 
       if (!restaurantDetails) {
-        console.log(`⚠️  Restaurant not found on Michelin Guide: ${restaurantName}`);
+        console.log(`⚠️  Restaurant not found on Michelin Guide search: ${restaurantName}`);
+        console.log(`🔧 DEBUG: Trying alternative approach...`);
+
+        // Try alternative search approach - maybe direct restaurant listing pages
+        try {
+          const alternativeUrl = `https://guide.michelin.com/en/restaurants`;
+          console.log(`🔧 DEBUG: Trying alternative URL: ${alternativeUrl}`);
+
+          await page.goto(alternativeUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          const altPageInfo = await page.evaluate(() => {
+            return {
+              title: document.title,
+              hasRestaurants: document.querySelectorAll('.card__menu, .restaurant-card, a[href*="/restaurant/"]').length,
+              bodyPreview: document.body.innerText.substring(0, 500)
+            };
+          });
+
+          console.log(`🔧 DEBUG: Alternative page info:`, altPageInfo);
+        } catch (altError) {
+          console.log(`🔧 DEBUG: Alternative approach also failed:`, altError.message);
+        }
+
         return null;
       }
 
@@ -347,6 +418,15 @@ class LocationUpdater {
       console.log(`📊 Found ${restaurantsToCheck.length} restaurants needing verification`);
 
       if (restaurantsToCheck.length === 0) {
+        // Test the Michelin search with a known restaurant to verify it's working
+        console.log(`🔧 DEBUG: Testing Michelin search functionality with known restaurant...`);
+        try {
+          const testResult = await this.searchRestaurantOnMichelin('Le Bernardin');
+          console.log(`🔧 DEBUG: Test search result:`, testResult);
+        } catch (error) {
+          console.log(`🔧 DEBUG: Test search failed:`, error.message);
+        }
+
         return {
           success: true,
           total: 0,
