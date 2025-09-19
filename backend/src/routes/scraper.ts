@@ -62,18 +62,28 @@ function makeRequest(url: string, options: { method?: string; data?: any } = {})
 }
 
 // POST /api/scraper/start - Start the scraping process (requires authentication)
-router.post('/start', adminAuth, async (_req, res, next) => {
+router.post('/start', adminAuth, async (req, res, next) => {
   try {
-    console.log('🚀 Triggering scraper service...');
+    const { stars } = req.body;
+
+    console.log(`🚀 Triggering scraper service${stars ? ` for ${Array.isArray(stars) ? stars.join(', ') : stars} star restaurants` : ''}...`);
+
+    // Prepare request data
+    const requestData: any = {};
+    if (stars !== undefined) {
+      requestData.stars = stars;
+    }
 
     // Call the scraper service
     const result = await makeRequest(`${SCRAPER_SERVICE_URL}/scrape`, {
-      method: 'POST'
+      method: 'POST',
+      data: requestData
     });
 
     res.status(202).json({
-      message: 'Scraper started successfully via scraper service',
+      message: `Scraper started successfully via scraper service${stars ? ` for ${Array.isArray(stars) ? stars.join(', ') : stars} star restaurants` : ''}`,
       scraperService: SCRAPER_SERVICE_URL,
+      targetStars: stars,
       result
     });
 
@@ -144,6 +154,91 @@ router.post('/stop', adminAuth, async (_req, res, next) => {
     }
 
     next(createError(`Failed to stop scraper: ${errorMessage}`, 500));
+  }
+});
+
+// POST /api/scraper/update-locations - Start location update process (requires authentication)
+router.post('/update-locations', adminAuth, async (_req, res, next) => {
+  try {
+    console.log('🗺️  Triggering location update process...');
+
+    const result = await makeRequest(`${SCRAPER_SERVICE_URL}/update-locations`, {
+      method: 'POST'
+    });
+
+    res.status(202).json({
+      message: 'Location update process started successfully',
+      scraperService: SCRAPER_SERVICE_URL,
+      result
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start location update process:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Request failed')) {
+      return next(createError('Scraper service unavailable. Please ensure the scraper service is running.', 503));
+    }
+
+    next(createError(`Failed to start location update: ${errorMessage}`, 500));
+  }
+});
+
+// GET /api/scraper/location-status - Get location update status
+router.get('/location-status', async (_req, res, next) => {
+  try {
+    console.log('📊 Fetching location update status from service...');
+
+    const status = await makeRequest(`${SCRAPER_SERVICE_URL}/location-status`);
+
+    res.json({
+      ...status,
+      scraperService: SCRAPER_SERVICE_URL
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to get location update status:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Request failed')) {
+      return res.json({
+        isRunning: false,
+        error: 'Scraper service unavailable',
+        scraperService: SCRAPER_SERVICE_URL,
+        lastRun: null,
+        progress: 'Service unavailable',
+        result: null
+      });
+    }
+
+    next(createError(`Failed to get location update status: ${errorMessage}`, 500));
+  }
+});
+
+// POST /api/scraper/stop-location-update - Stop location update process (requires authentication)
+router.post('/stop-location-update', adminAuth, async (_req, res, next) => {
+  try {
+    console.log('🛑 Stopping location update process...');
+
+    const result = await makeRequest(`${SCRAPER_SERVICE_URL}/stop-location-update`, {
+      method: 'POST'
+    });
+
+    res.json({
+      message: 'Location update stop requested',
+      scraperService: SCRAPER_SERVICE_URL,
+      result
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to stop location update process:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Request failed')) {
+      return next(createError('Scraper service unavailable', 503));
+    }
+
+    next(createError(`Failed to stop location update: ${errorMessage}`, 500));
   }
 });
 

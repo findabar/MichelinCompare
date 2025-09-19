@@ -1,0 +1,264 @@
+const express = require('express');
+const cors = require('cors');
+const MichelinScraper = require('./scraper');
+const { seedDatabase } = require('./seeder');
+const { LocationUpdater } = require('./locationUpdater');
+
+const app = express();
+const PORT = process.env.PORT || 3002;
+
+app.use(cors());
+app.use(express.json());
+
+// In-memory status tracking
+let scraperStatus = {
+  isRunning: false,
+  lastRun: null,
+  progress: '',
+  result: null,
+  error: null
+};
+
+let locationUpdateStatus = {
+  isRunning: false,
+  lastRun: null,
+  progress: '',
+  result: null,
+  error: null
+};
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    service: 'michelin-scraper',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Get scraper status
+app.get('/status', (req, res) => {
+  res.json({
+    scraper: scraperStatus,
+    locationUpdate: locationUpdateStatus
+  });
+});
+
+// Get location update status specifically
+app.get('/location-status', (req, res) => {
+  res.json(locationUpdateStatus);
+});
+
+// Start scraping process
+app.post('/scrape', async (req, res) => {
+  if (scraperStatus.isRunning) {
+    return res.status(409).json({
+      error: 'Scraper is already running',
+      status: scraperStatus
+    });
+  }
+
+  // Get stars parameter from request body
+  const { stars } = req.body;
+  let starLevels = [3, 2, 1]; // default to all
+
+  // Validate and parse stars parameter
+  if (stars !== undefined) {
+    if (Array.isArray(stars)) {
+      starLevels = stars.filter(s => [1, 2, 3].includes(parseInt(s))).map(s => parseInt(s));
+    } else if (typeof stars === 'number' || typeof stars === 'string') {
+      const star = parseInt(stars);
+      if ([1, 2, 3].includes(star)) {
+        starLevels = [star];
+      }
+    }
+
+    if (starLevels.length === 0) {
+      return res.status(400).json({
+        error: 'Invalid stars parameter. Must be 1, 2, 3, or array of these values.',
+        example: { stars: 1 }, // or { stars: [1, 2] } or { stars: [1, 2, 3] }
+      });
+    }
+  }
+
+  // Start scraping process
+  scraperStatus = {
+    isRunning: true,
+    lastRun: new Date(),
+    progress: `Starting scraper for ${starLevels.join(', ')} star restaurants...`,
+    result: null,
+    error: null,
+    targetStars: starLevels
+  };
+
+  // Return immediately while scraping runs in background
+  res.status(202).json({
+    message: `Scraping started for ${starLevels.join(', ')} star restaurants`,
+    status: scraperStatus
+  });
+
+  // Run scraping in background
+  runScrapingProcess(starLevels);
+});
+
+// Stop scraping (placeholder)
+app.post('/stop', (req, res) => {
+  if (!scraperStatus.isRunning) {
+    return res.status(400).json({ error: 'No scraper is currently running' });
+  }
+
+  scraperStatus.isRunning = false;
+  scraperStatus.progress = 'Stopped by user';
+
+  res.json({ message: 'Scraper stopped' });
+});
+
+// Start location update process
+app.post('/update-locations', async (req, res) => {
+  if (locationUpdateStatus.isRunning) {
+    return res.status(409).json({
+      error: 'Location update is already running',
+      status: locationUpdateStatus
+    });
+  }
+
+  if (scraperStatus.isRunning) {
+    return res.status(409).json({
+      error: 'Cannot run location update while scraper is running',
+      status: { scraper: scraperStatus, locationUpdate: locationUpdateStatus }
+    });
+  }
+
+  // Start location update process
+  locationUpdateStatus = {
+    isRunning: true,
+    lastRun: new Date(),
+    progress: 'Starting restaurant location verification...',
+    result: null,
+    error: null
+  };
+
+  // Return immediately while location update runs in background
+  res.status(202).json({
+    message: 'Location update started',
+    status: locationUpdateStatus
+  });
+
+  // Run location update in background
+  runLocationUpdateProcess();
+});
+
+// Stop location update
+app.post('/stop-location-update', (req, res) => {
+  if (!locationUpdateStatus.isRunning) {
+    return res.status(400).json({ error: 'No location update is currently running' });
+  }
+
+  locationUpdateStatus.isRunning = false;
+  locationUpdateStatus.progress = 'Stopped by user';
+
+  res.json({ message: 'Location update stopped' });
+});
+
+async function runScrapingProcess(starLevels = [3, 2, 1]) {
+  try {
+    scraperStatus.progress = 'Initializing scraper...';
+
+    const scraper = new MichelinScraper();
+
+    const starText = starLevels.join(', ') + ' star';
+    scraperStatus.progress = `Scraping ${starText} restaurants globally...`;
+
+    // Call the appropriate scraper method based on starLevels
+    let scrapeResult;
+    if (starLevels.length === 1) {
+      switch (starLevels[0]) {
+        case 3:
+          scrapeResult = await scraper.scrape3Star();
+          break;
+        case 2:
+          scrapeResult = await scraper.scrape2Star();
+          break;
+        case 1:
+          scrapeResult = await scraper.scrape1Star();
+          break;
+        default:
+          scrapeResult = await scraper.scrapeByStars(starLevels);
+      }
+    } else {
+      scrapeResult = await scraper.scrapeByStars(starLevels);
+    }
+
+    scraperStatus.progress = 'Scraping completed, starting database seeding...';
+    const seedResult = await seedDatabase();
+
+    scraperStatus.isRunning = false;
+    scraperStatus.progress = `Completed successfully! Scraped ${starText} restaurants.`;
+    scraperStatus.result = {
+      scrape: scrapeResult,
+      seed: seedResult,
+      timestamp: new Date(),
+      targetStars: starLevels
+    };
+
+    console.log(`✅ Scraping and seeding completed successfully for ${starText} restaurants`);
+
+  } catch (error) {
+    console.error('❌ Scraping process failed:', error);
+
+    scraperStatus.isRunning = false;
+    scraperStatus.error = error.message;
+    scraperStatus.progress = 'Failed: ' + error.message;
+    scraperStatus.result = {
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+      targetStars: starLevels
+    };
+  }
+}
+
+async function runLocationUpdateProcess() {
+  try {
+    locationUpdateStatus.progress = 'Initializing location updater...';
+
+    const updater = new LocationUpdater();
+
+    locationUpdateStatus.progress = 'Checking restaurants on Michelin Guide for location and cuisine updates...';
+
+    const updateResult = await updater.checkRestaurantDetails();
+
+    locationUpdateStatus.isRunning = false;
+    locationUpdateStatus.progress = 'Completed successfully!';
+    locationUpdateStatus.result = {
+      ...updateResult,
+      timestamp: new Date()
+    };
+
+    console.log('✅ Location update completed successfully');
+
+  } catch (error) {
+    console.error('❌ Location update process failed:', error);
+
+    locationUpdateStatus.isRunning = false;
+    locationUpdateStatus.error = error.message;
+    locationUpdateStatus.progress = 'Failed: ' + error.message;
+    locationUpdateStatus.result = {
+      success: false,
+      error: error.message,
+      timestamp: new Date()
+    };
+  }
+}
+
+app.listen(PORT, () => {
+  console.log(`🚀 Michelin Scraper Service running on port ${PORT}`);
+  console.log(`📊 Endpoints:`);
+  console.log(`   GET  /health              - Health check`);
+  console.log(`   GET  /status              - Check scraper and location update status`);
+  console.log(`   GET  /location-status     - Check location update status`);
+  console.log(`   POST /scrape              - Start scraping process`);
+  console.log(`   POST /stop                - Stop scraping process`);
+  console.log(`   POST /update-locations    - Start location update process`);
+  console.log(`   POST /stop-location-update - Stop location update process`);
+});

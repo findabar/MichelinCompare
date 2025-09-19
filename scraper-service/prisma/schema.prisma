@@ -1,0 +1,65 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String      @id @default(cuid())
+  username                String      @unique
+  email                   String      @unique
+  passwordHash            String      @map("password_hash")
+  totalScore              Int         @default(0) @map("total_score")
+  restaurantsVisitedCount Int         @default(0) @map("restaurants_visited_count")
+  createdAt               DateTime    @default(now()) @map("created_at")
+  updatedAt               DateTime    @updatedAt @map("updated_at")
+
+  visits UserVisit[]
+
+  @@map("users")
+}
+
+model Restaurant {
+  id           String   @id @default(cuid())
+  name         String
+  city         String
+  country      String
+  cuisineType  String   @map("cuisine_type")
+  michelinStars Int     @map("michelin_stars")
+  yearAwarded  Int      @map("year_awarded")
+  address      String
+  latitude     Float?
+  longitude    Float?
+  description  String?
+  imageUrl     String?  @map("image_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  visits UserVisit[]
+
+  @@index([country, city])
+  @@index([michelinStars])
+  @@index([cuisineType])
+  @@map("restaurants")
+}
+
+model UserVisit {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  restaurantId String    @map("restaurant_id")
+  dateVisited  DateTime  @map("date_visited")
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@index([userId])
+  @@index([restaurantId])
+  @@map("user_visits")
+}

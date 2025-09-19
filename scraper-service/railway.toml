@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npx prisma generate"
+
+[deploy]
+startCommand = "npm start"
+
+[[services]]
+name = "scraper"
+
+[services.variables]
+NODE_ENV = "production"
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "false"
