@@ -1,16 +1,25 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Star, Trophy, Map, Calendar, Trash2, Eye, BarChart3 } from 'lucide-react';
-import { userAPI, visitAPI } from '../services/api';
+import { Star, Trophy, Map, Calendar, Trash2, Eye, BarChart3, MessageCircle, X } from 'lucide-react';
+import { userAPI, visitAPI, feedbackAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+
+interface FeedbackForm {
+  feedbackType: string;
+  description: string;
+}
 
 const DashboardPage = () => {
   const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'visits'>('overview');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const queryClient = useQueryClient();
+
+  const { register: registerFeedback, handleSubmit: handleSubmitFeedback, reset: resetFeedback, formState: { errors: feedbackErrors } } = useForm<FeedbackForm>();
 
   const { data: profile, isLoading } = useQuery(
     'user-profile',
@@ -43,6 +52,21 @@ const DashboardPage = () => {
       toast.error(error.response?.data?.error?.message || 'Failed to remove visit');
     },
   });
+
+  const submitFeedbackMutation = useMutation(feedbackAPI.submitFeedback, {
+    onSuccess: (data) => {
+      toast.success(data.data.message);
+      setShowFeedbackModal(false);
+      resetFeedback();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to submit feedback');
+    },
+  });
+
+  const onSubmitFeedback = (data: FeedbackForm) => {
+    submitFeedbackMutation.mutate(data);
+  };
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -263,6 +287,100 @@ const DashboardPage = () => {
               </Link>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Feedback Button */}
+      <div className="mt-12 pt-8 border-t border-gray-200">
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setShowFeedbackModal(true)}
+            className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors shadow-md"
+          >
+            <MessageCircle className="h-5 w-5" />
+            <span>Give Feedback</span>
+          </button>
+          <p className="text-sm text-gray-600 mt-2">
+            Missing a restaurant or have a suggestion? Let us know!
+          </p>
+        </div>
+      </div>
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full mx-4">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Send Feedback</h3>
+              <button
+                type="button"
+                onClick={() => setShowFeedbackModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+                title="Close feedback modal"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitFeedback(onSubmitFeedback)} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Feedback Type *
+                </label>
+                <select
+                  {...registerFeedback('feedbackType', { required: 'Please select a feedback type' })}
+                  className="input-field"
+                >
+                  <option value="">Select feedback type...</option>
+                  <option value="missing-restaurant">Missing Restaurant</option>
+                  <option value="feature-request">Feature Request</option>
+                  <option value="bug-report">Bug Report</option>
+                  <option value="other">Other</option>
+                </select>
+                {feedbackErrors.feedbackType && (
+                  <p className="mt-1 text-sm text-red-600">{feedbackErrors.feedbackType.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description *
+                </label>
+                <textarea
+                  {...registerFeedback('description', {
+                    required: 'Please provide a description',
+                    minLength: { value: 10, message: 'Description must be at least 10 characters' },
+                    maxLength: { value: 2000, message: 'Description must be less than 2000 characters' }
+                  })}
+                  rows={5}
+                  className="input-field"
+                  placeholder="Please provide details about your feedback..."
+                />
+                {feedbackErrors.description && (
+                  <p className="mt-1 text-sm text-red-600">{feedbackErrors.description.message}</p>
+                )}
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={submitFeedbackMutation.isLoading}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {submitFeedbackMutation.isLoading ? 'Sending...' : 'Send Feedback'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFeedbackModal(false)}
+                  disabled={submitFeedbackMutation.isLoading}
+                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

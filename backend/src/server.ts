@@ -12,6 +12,7 @@ import userRoutes from './routes/users';
 import visitRoutes from './routes/visits';
 import leaderboardRoutes from './routes/leaderboard';
 import scraperRoutes from './routes/scraper';
+import feedbackRoutes from './routes/feedback';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -43,8 +44,9 @@ app.use('/api/users', userRoutes);
 app.use('/api/visits', visitRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/scraper', scraperRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 

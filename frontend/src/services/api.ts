@@ -88,4 +88,9 @@ export const leaderboardAPI = {
     api.get('/leaderboard/stats'),
 };
 
+export const feedbackAPI = {
+  submitFeedback: (data: { feedbackType: string; description: string }) =>
+    api.post<{ success: boolean; message: string }>('/feedback', data),
+};
+
 export default api;
