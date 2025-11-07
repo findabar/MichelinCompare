@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(railway logs:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

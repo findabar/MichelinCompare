@@ -1,6 +1,78 @@
 const { LocationUpdater } = require('./locationUpdater');
+const OpenAI = require('openai');
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY // Make sure to set this environment variable
+});
 
 class TestLocationUpdater extends LocationUpdater {
+
+  async extractRestaurantDetailsWithAI(pageContent, restaurantName) {
+    try {
+      console.log(`🤖 Using OpenAI to extract restaurant details...`);
+
+      const prompt = `You are analyzing a Michelin Guide restaurant search results page. Please extract restaurant information from the following HTML content.
+
+Search Query: "${restaurantName}"
+
+HTML Content:
+${pageContent}
+
+Please extract all restaurants that match or are similar to "${restaurantName}" and provide the information in the following JSON format:
+
+{
+  "restaurants": [
+    {
+      "name": "exact restaurant name",
+      "city": "city name",
+      "country": "country name",
+      "cuisine": "cuisine type (e.g., French, Italian, Contemporary, etc.)",
+      "michelinStars": "number of stars (1, 2, or 3)",
+      "url": "full URL to restaurant page"
+    }
+  ]
+}
+
+Rules:
+1. Only include restaurants that are clearly related to the search "${restaurantName}"
+2. Extract the city and country from the page content or URL structure
+3. If cuisine type is not explicitly mentioned, make a reasonable inference based on the restaurant name/context
+4. If Michelin stars are not clear, default to 1
+5. Ensure all URLs are complete (start with https://)
+6. If information is unclear, use your best judgment based on the context
+
+Return only the JSON object, no additional text.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that extracts structured restaurant data from Michelin Guide pages. Always respond with valid JSON only."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0,
+        max_tokens: 2000
+      });
+
+      const aiResponse = response.choices[0].message.content.trim();
+      console.log(`🤖 OpenAI Response:`, aiResponse);
+
+      // Parse the JSON response
+      const restaurantData = JSON.parse(aiResponse);
+
+      return restaurantData;
+
+    } catch (error) {
+      console.error(`❌ OpenAI extraction failed:`, error);
+      return { restaurants: [] };
+    }
+  }
 
   async testSingleRestaurant(restaurantName) {
     console.log(`🧪 Testing location update for: "${restaurantName}"`);

@@ -242,5 +242,42 @@ router.post('/stop-location-update', adminAuth, async (_req, res, next) => {
   }
 });
 
+// POST /api/scraper/test-restaurant - Test single restaurant lookup (requires authentication)
+router.post('/test-restaurant', adminAuth, async (req, res, next) => {
+  try {
+    const { restaurantName } = req.body;
+
+    if (!restaurantName) {
+      return res.status(400).json({
+        error: 'Restaurant name is required in request body',
+        example: { restaurantName: 'Le Bernardin' }
+      });
+    }
+
+    console.log(`🧪 Testing restaurant lookup via backend for: ${restaurantName}`);
+
+    const result = await makeRequest(`${SCRAPER_SERVICE_URL}/test-restaurant`, {
+      method: 'POST',
+      data: { restaurantName }
+    });
+
+    res.json({
+      message: `Restaurant test completed for: ${restaurantName}`,
+      scraperService: SCRAPER_SERVICE_URL,
+      result
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to test restaurant lookup:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Request failed')) {
+      return next(createError('Scraper service unavailable. Please ensure the scraper service is running.', 503));
+    }
+
+    next(createError(`Failed to test restaurant lookup: ${errorMessage}`, 500));
+  }
+});
+
 
 export default router;

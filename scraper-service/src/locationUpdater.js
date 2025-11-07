@@ -1,7 +1,13 @@
 const { PrismaClient } = require('@prisma/client');
 const puppeteer = require('puppeteer');
+const OpenAI = require('openai');
 
 const prisma = new PrismaClient();
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 class LocationUpdater {
   constructor() {
@@ -29,6 +35,238 @@ class LocationUpdater {
     console.log('✅ Browser initialized successfully');
   }
 
+  async extractRestaurantDetailsWithAI(pageContent, restaurantName) {
+    try {
+      if (!process.env.OPENAI_API_KEY) {
+        console.log('⚠️  OpenAI API key not found, falling back to manual extraction');
+        return null;
+      }
+
+      console.log(`🤖 Using OpenAI to extract restaurant details...`);
+
+      // Filter out the "Nearby Restaurants" section to focus only on the specific restaurant
+      let filteredContent = pageContent;
+      const nearbyRestaurantsIndex = pageContent.indexOf('<h2 class="section__heading section__heading_title">\n                        Nearby Restaurants\n                    </h2>');
+      if (nearbyRestaurantsIndex !== -1) {
+        filteredContent = pageContent.substring(0, nearbyRestaurantsIndex);
+        console.log(`🔧 DEBUG: Filtered out "Nearby Restaurants" section (${pageContent.length - filteredContent.length} characters removed)`);
+      }
+
+      // Strip all HTML tags and clean up the text
+      const stripHtmlTags = (html) => {
+        return html
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '') // Remove style tags
+          .replace(/<[^>]*>/g, '') // Remove all HTML tags
+          .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+          .replace(/\n\s*\n/g, '\n') // Replace multiple newlines with single newline
+          .trim();
+      };
+
+      const cleanContent = stripHtmlTags(filteredContent);
+      console.log(`🔧 DEBUG: Stripped HTML tags (${filteredContent.length} → ${cleanContent.length} characters)`);
+
+      const prompt = `You are analyzing a Michelin Guide restaurant search results page. Please extract restaurant information from the following text content.
+
+Search Query: "${restaurantName}"
+
+Text Content:
+${cleanContent.substring(0, 8000)}
+
+Please extract all restaurants that match or are similar to "${restaurantName}" and provide the information in the following JSON format:
+
+{
+  "restaurants": [
+    {
+      "name": "exact restaurant name",
+      "city": "city name",
+      "country": "country name",
+      "cuisine": "cuisine type (e.g., French, Italian, Contemporary, etc.)",
+      "michelinStars": 1,
+      "description": "description text that follows the star classification",
+      "streetAddress": "street address if available",
+      "phone": "phone number if available",
+      "url": "restaurant's own website URL if available",
+      "michelinUrl": "full URL to restaurant page on Michelin Guide"
+    }
+  ]
+}
+
+Rules:
+1. Only include restaurants that are clearly related to the search "${restaurantName}"
+2. IGNORE any "Nearby Restaurants" or similar sections - focus only on the main restaurant details
+3. Extract the city and country from the page content, URL structure, or make reasonable inferences
+4. If cuisine type is not explicitly mentioned, make a reasonable inference based on the restaurant name/context
+5. For Michelin stars, look for content in "data-sheet__classification-item--content" divs:
+   - "One Star: High quality cooking" = 1 star
+   - "Two Stars: Excellent cooking" = 2 stars
+   - "Three Stars: Exceptional cuisine" = 3 stars
+   - If no star classification found, default to 1
+6. For description, extract the text that follows "One Star:", "Two Stars:", or "Three Stars:" (e.g., "High quality cooking", "Excellent cooking", "Exceptional cuisine")
+7. Ensure all URLs are complete (start with https://)
+8. Focus on extracting location information from the URLs if visible (e.g., /new-york-state/new-york/ suggests New York, United States)
+9. For street address, look for the address text that appears directly under the restaurant name and above the cuisine type in the search results
+10. Look for restaurant website URL and phone number in the page content
+11. If street address/website/phone are not found, set them to null
+12. The "url" field should be the restaurant's own website, "michelinUrl" should be the Michelin Guide page URL
+13. Focus only on the primary restaurant being searched for, not related or nearby restaurants
+
+Return only the JSON object, no additional text.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that extracts structured restaurant data from Michelin Guide pages. Always respond with valid JSON only."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0,
+        max_tokens: 1500
+      });
+
+      const aiResponse = response.choices[0].message.content.trim();
+      console.log(`🤖 OpenAI extraction successful`);
+
+      // Clean up the response if it has markdown formatting
+      let cleanResponse = aiResponse;
+      if (aiResponse.startsWith('```json')) {
+        cleanResponse = aiResponse.replace(/```json\n?/, '').replace(/\n?```/, '');
+      } else if (aiResponse.startsWith('```')) {
+        cleanResponse = aiResponse.replace(/```\n?/, '').replace(/\n?```/, '');
+      }
+
+      // Parse the JSON response
+      const restaurantData = JSON.parse(cleanResponse);
+
+      return restaurantData;
+
+    } catch (error) {
+      console.error(`❌ OpenAI extraction failed:`, error.message);
+      return null;
+    }
+  }
+
+  async extractDetailsFromRestaurantPage(restaurantUrl) {
+    if (!this.browser) {
+      throw new Error('Browser not initialized. Call init() first.');
+    }
+
+    const page = await this.browser.newPage();
+
+    try {
+      console.log(`🔍 Loading restaurant detail page: ${restaurantUrl}`);
+
+      // Set realistic browser headers
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.setExtraHTTPHeaders({
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      });
+
+      await page.goto(restaurantUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Get the page content for AI analysis
+      const pageContent = await page.content();
+      console.log(`📝 Detail page content length: ${pageContent.length} characters`);
+
+      // Strip HTML tags for clean analysis
+      const stripHtmlTags = (html) => {
+        return html
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+          .replace(/<[^>]*>/g, '')
+          .replace(/\s+/g, ' ')
+          .replace(/\n\s*\n/g, '\n')
+          .trim();
+      };
+
+      const cleanContent = stripHtmlTags(pageContent);
+      console.log(`🔧 DEBUG: Stripped HTML tags (${pageContent.length} → ${cleanContent.length} characters)`);
+
+      // Use AI to extract detailed information
+      if (process.env.OPENAI_API_KEY) {
+        const prompt = `You are analyzing a Michelin Guide restaurant detail page. Please extract the detailed contact information from the following text content.
+
+Text Content:
+${cleanContent.substring(0, 8000)}
+
+Please extract and provide the information in the following JSON format:
+
+{
+  "streetAddress": "full street address if available",
+  "phone": "phone number if available",
+  "url": "restaurant's own website URL if available"
+}
+
+Rules:
+1. Look for the full street address (street number, street name, city, postal code)
+2. Look for phone number (usually starts with +, country code, or area code)
+3. Look for restaurant website URL - it appears under a "visit website" button and starts with https:// (not the Michelin Guide URL)
+4. The website URL typically appears just before the phone number in the page content
+5. If any information is not found, set it to null
+6. Ensure addresses are complete and properly formatted
+7. Ensure phone numbers include country/area codes if visible
+8. Ensure website URLs are complete and start with https://
+
+Return only the JSON object, no additional text.`;
+
+        try {
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: "system",
+                content: "You are a helpful assistant that extracts contact information from restaurant pages. Always respond with valid JSON only."
+              },
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            temperature: 0,
+            max_tokens: 500
+          });
+
+          const aiResponse = response.choices[0].message.content.trim();
+          console.log(`🤖 Detail page AI extraction successful`);
+
+          // Clean up the response if it has markdown formatting
+          let cleanResponse = aiResponse;
+          if (aiResponse.startsWith('```json')) {
+            cleanResponse = aiResponse.replace(/```json\n?/, '').replace(/\n?```/, '');
+          } else if (aiResponse.startsWith('```')) {
+            cleanResponse = aiResponse.replace(/```\n?/, '').replace(/\n?```/, '');
+          }
+
+          // Parse the JSON response
+          const detailData = JSON.parse(cleanResponse);
+          return detailData;
+
+        } catch (error) {
+          console.error(`❌ Detail page AI extraction failed:`, error.message);
+          return null;
+        }
+      }
+
+      return null;
+
+    } catch (error) {
+      console.error(`❌ Error loading restaurant detail page:`, error.message);
+      return null;
+    } finally {
+      await page.close();
+    }
+  }
+
   async searchRestaurantOnMichelin(restaurantName) {
     if (!this.browser) {
       throw new Error('Browser not initialized. Call init() first.');
@@ -54,38 +292,73 @@ class LocationUpdater {
       console.log(`🔧 DEBUG: Search URL: ${searchUrl}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Debug: Check page title and content
       const pageTitle = await page.title();
       const pageUrl = page.url();
       console.log(`🔧 DEBUG: Page loaded - Title: "${pageTitle}", URL: ${pageUrl}`);
 
-      // Debug: Check if we got blocked or redirected
+      // Get the page content for AI analysis
       const pageContent = await page.content();
-      if (pageContent.includes('blocked') || pageContent.includes('captcha') || pageContent.includes('security')) {
-        console.log(`🔧 DEBUG: Possible blocking detected in page content`);
+      console.log(`📝 Page content length: ${pageContent.length} characters`);
+
+      // Try AI extraction first if OpenAI API key is available
+      if (process.env.OPENAI_API_KEY) {
+        console.log(`🤖 Attempting AI extraction for: ${restaurantName}`);
+        const aiResult = await this.extractRestaurantDetailsWithAI(pageContent, restaurantName);
+
+        if (aiResult && aiResult.restaurants && aiResult.restaurants.length > 0) {
+          console.log(`✅ AI extraction successful! Found ${aiResult.restaurants.length} restaurant(s)`);
+
+          // Enhanced processing: get detailed info from individual restaurant pages
+          const processedRestaurants = [];
+
+          for (let i = 0; i < aiResult.restaurants.length; i++) {
+            const restaurant = aiResult.restaurants[i];
+            let processedRestaurant = {
+              name: restaurant.name,
+              city: restaurant.city || 'Unknown City',
+              country: restaurant.country || 'Unknown Country',
+              cuisine: restaurant.cuisine || 'Contemporary',
+              michelinStars: restaurant.michelinStars || 1,
+              description: restaurant.description || null,
+              streetAddress: restaurant.streetAddress || null,
+              phone: restaurant.phone || null,
+              url: restaurant.url || null, // Restaurant's own website
+              michelinUrl: restaurant.michelinUrl || null, // Michelin Guide page URL
+              isMainMatch: i === 0 // First match is used to update existing restaurant
+            };
+
+            // If we have a Michelin URL and no street address, try to get detailed info
+            if (restaurant.michelinUrl && (!restaurant.streetAddress || restaurant.streetAddress === 'null')) {
+              console.log(`🏠 Getting detailed address for: ${restaurant.name}`);
+              const detailsFromPage = await this.extractDetailsFromRestaurantPage(restaurant.michelinUrl);
+
+              if (detailsFromPage) {
+                // Update with more detailed information
+                processedRestaurant.streetAddress = detailsFromPage.streetAddress || processedRestaurant.streetAddress;
+                processedRestaurant.phone = detailsFromPage.phone || processedRestaurant.phone;
+                processedRestaurant.url = detailsFromPage.url || processedRestaurant.url;
+                console.log(`✅ Enhanced details for ${restaurant.name}: address="${detailsFromPage.streetAddress}"`);
+              }
+            }
+
+            processedRestaurants.push(processedRestaurant);
+          }
+
+          return {
+            restaurants: processedRestaurants,
+            totalFound: aiResult.restaurants.length,
+            method: 'AI+Details'
+          };
+        } else {
+          console.log(`⚠️  AI extraction failed or returned no results, falling back to manual parsing`);
+        }
       }
 
-      // Debug: Check what's actually on the page
-      const debugInfo = await page.evaluate(() => {
-        return {
-          bodyText: document.body.innerText.substring(0, 1000),
-          title: document.title,
-          url: window.location.href,
-          hasCards: document.querySelectorAll('.card__menu, .js-restaurant__list_item, .selection-card, .restaurant-card, .poi-card, .card').length,
-          hasRestaurantLinks: document.querySelectorAll('a[href*="/restaurant/"]').length,
-          allClassNames: Array.from(document.querySelectorAll('*')).map(el => el.className).filter(cn => cn && typeof cn === 'string').slice(0, 50)
-        };
-      });
-
-      console.log(`🔧 DEBUG: Page analysis:`, debugInfo);
-
-      // Take a screenshot for debugging (if needed)
-      if (debugInfo.hasCards === 0 && debugInfo.hasRestaurantLinks === 0) {
-        console.log(`🔧 DEBUG: No restaurant content found, this might be an issue`);
-        // Could save screenshot here if needed: await page.screenshot({path: `/tmp/debug-${Date.now()}.png`});
-      }
+      // Fallback to manual HTML parsing if AI fails or API key not available
+      console.log(`🔧 Falling back to manual HTML parsing for: ${restaurantName}`);
 
       // Look for restaurant cards in search results and extract all matching restaurants
       const allRestaurantMatches = await page.evaluate((searchName) => {
@@ -178,9 +451,9 @@ class LocationUpdater {
                   }
                 }
 
-                // Get restaurant URL
+                // Get restaurant URL (Michelin page)
                 const linkElement = card.querySelector('a[href*="/restaurant/"], a[href*="/establishment/"]');
-                const restaurantUrl = linkElement ?
+                const michelinUrl = linkElement ?
                   (linkElement.getAttribute('href').startsWith('http') ?
                     linkElement.getAttribute('href') :
                     `https://guide.michelin.com${linkElement.getAttribute('href')}`) : null;
@@ -191,7 +464,7 @@ class LocationUpdater {
                   name: cardName,
                   rawLocation: locationText,
                   cuisine: cuisineText,
-                  url: restaurantUrl
+                  michelinUrl: michelinUrl
                 });
               }
             }
@@ -209,7 +482,7 @@ class LocationUpdater {
         return null;
       }
 
-      console.log(`✅ Found ${allRestaurantMatches.length} restaurant(s) for: ${restaurantName}`);
+      console.log(`✅ Found ${allRestaurantMatches.length} restaurant(s) for: ${restaurantName} (manual parsing)`);
 
       // Process all matches and return the first one with additional matches for database insertion
       const processedRestaurants = [];
@@ -226,8 +499,11 @@ class LocationUpdater {
           city: parsedLocation.city,
           country: parsedLocation.country,
           cuisine: match.cuisine || 'Contemporary',
-          rawLocation: match.rawLocation,
-          url: match.url,
+          michelinStars: 1, // Default for manual parsing
+          streetAddress: null, // Not available in manual parsing
+          phone: null, // Not available in manual parsing
+          url: null, // Restaurant website not available in manual parsing
+          michelinUrl: match.michelinUrl,
           isMainMatch: i === 0 // First match is used to update existing restaurant
         };
 
@@ -236,7 +512,8 @@ class LocationUpdater {
 
       return {
         restaurants: processedRestaurants,
-        totalFound: allRestaurantMatches.length
+        totalFound: allRestaurantMatches.length,
+        method: 'manual'
       };
 
     } catch (error) {
@@ -300,10 +577,17 @@ class LocationUpdater {
     return { city, country };
   }
 
-  async checkRestaurantDetails() {
+  async checkRestaurantDetails(options = {}) {
     if (!this.browser) {
       await this.init();
     }
+
+    // Parse filtering options
+    const {
+      filterType = 'unknown', // 'all', 'unknown', 'stars', 'name'
+      restaurantName = null,
+      starLevel = null
+    } = options;
 
     try {
       console.log('🔍 Finding restaurants with unknown locations or needing verification...');
@@ -348,20 +632,63 @@ class LocationUpdater {
         console.log(`  "${item.country}": ${item._count.country} restaurants`);
       });
 
-      // Find restaurants that have "Unknown City" or "Unknown Country"
+      // Build query based on filter type
+      let whereClause = {};
+      let filterDescription = '';
+
+      switch (filterType) {
+        case 'all':
+          whereClause = {}; // No filter - get all restaurants
+          filterDescription = 'all restaurants';
+          break;
+
+        case 'name':
+          if (!restaurantName) {
+            throw new Error('Restaurant name is required when filterType is "name"');
+          }
+          whereClause = {
+            name: {
+              contains: restaurantName,
+              mode: 'insensitive'
+            }
+          };
+          filterDescription = `restaurants matching "${restaurantName}"`;
+          break;
+
+        case 'stars':
+          if (!starLevel || ![1, 2, 3].includes(starLevel)) {
+            throw new Error('Star level (1, 2, or 3) is required when filterType is "stars"');
+          }
+          whereClause = {
+            michelinStars: starLevel
+          };
+          filterDescription = `${starLevel}-star restaurants`;
+          break;
+
+        case 'unknown':
+        default:
+          whereClause = {
+            OR: [
+              { city: 'Unknown City' },
+              { country: 'Unknown Country' }
+            ]
+          };
+          filterDescription = 'restaurants with unknown locations';
+          break;
+      }
+
+      console.log(`🔍 Looking for ${filterDescription}...`);
+
+      // Find restaurants based on filter
       const restaurantsToCheck = await prisma.restaurant.findMany({
-        where: {
-          OR: [
-            { city: 'Unknown City' },
-            { country: 'Unknown Country' }
-          ]
-        },
+        where: whereClause,
         select: {
           id: true,
           name: true,
           city: true,
           country: true,
-          cuisineType: true
+          cuisineType: true,
+          michelinStars: true
         }
       });
 
@@ -439,6 +766,43 @@ class LocationUpdater {
               console.log(`🔧 DEBUG: Will update cuisine to "${mainMatch.cuisine}"`);
             }
 
+            // Update additional fields if available from AI extraction
+            if (mainMatch.streetAddress && mainMatch.streetAddress !== 'null') {
+              updateData.address = mainMatch.streetAddress;
+              changes.push(`address: "${mainMatch.streetAddress}"`);
+              console.log(`🔧 DEBUG: Will update address to "${mainMatch.streetAddress}"`);
+            }
+
+            if (mainMatch.phone && mainMatch.phone !== 'null') {
+              updateData.phone = mainMatch.phone;
+              changes.push(`phone: "${mainMatch.phone}"`);
+              console.log(`🔧 DEBUG: Will update phone to "${mainMatch.phone}"`);
+            }
+
+            if (mainMatch.url && mainMatch.url !== 'null') {
+              updateData.website = mainMatch.url;
+              changes.push(`website: "${mainMatch.url}"`);
+              console.log(`🔧 DEBUG: Will update website to "${mainMatch.url}"`);
+            }
+
+            if (mainMatch.michelinUrl && mainMatch.michelinUrl !== 'null') {
+              updateData.michelinUrl = mainMatch.michelinUrl;
+              changes.push(`michelin URL: "${mainMatch.michelinUrl}"`);
+              console.log(`🔧 DEBUG: Will update Michelin URL to "${mainMatch.michelinUrl}"`);
+            }
+
+            if (mainMatch.michelinStars && mainMatch.michelinStars !== restaurant.michelinStars) {
+              updateData.michelinStars = mainMatch.michelinStars;
+              changes.push(`stars: ${restaurant.michelinStars} → ${mainMatch.michelinStars}`);
+              console.log(`🔧 DEBUG: Will update stars to ${mainMatch.michelinStars}`);
+            }
+
+            if (mainMatch.description && mainMatch.description !== 'null') {
+              updateData.description = mainMatch.description;
+              changes.push(`description: "${mainMatch.description}"`);
+              console.log(`🔧 DEBUG: Will update description to "${mainMatch.description}"`);
+            }
+
             console.log(`🔧 DEBUG: Update data:`, updateData);
 
             if (Object.keys(updateData).length > 0) {
@@ -475,20 +839,33 @@ class LocationUpdater {
                   });
 
                   if (!existing) {
+                    const newRestaurantData = {
+                      name: additionalMatch.name,
+                      city: additionalMatch.city,
+                      country: additionalMatch.country,
+                      cuisineType: additionalMatch.cuisine || 'Contemporary',
+                      michelinStars: additionalMatch.michelinStars || 1,
+                      yearAwarded: new Date().getFullYear(),
+                      address: additionalMatch.streetAddress || additionalMatch.rawLocation || '',
+                      latitude: null,
+                      longitude: null,
+                      description: additionalMatch.description || `Michelin restaurant in ${additionalMatch.city}, ${additionalMatch.country}`,
+                      imageUrl: null
+                    };
+
+                    // Add additional fields if available from AI extraction
+                    if (additionalMatch.phone && additionalMatch.phone !== 'null') {
+                      newRestaurantData.phone = additionalMatch.phone;
+                    }
+                    if (additionalMatch.url && additionalMatch.url !== 'null') {
+                      newRestaurantData.website = additionalMatch.url;
+                    }
+                    if (additionalMatch.michelinUrl && additionalMatch.michelinUrl !== 'null') {
+                      newRestaurantData.michelinUrl = additionalMatch.michelinUrl;
+                    }
+
                     await prisma.restaurant.create({
-                      data: {
-                        name: additionalMatch.name,
-                        city: additionalMatch.city,
-                        country: additionalMatch.country,
-                        cuisineType: additionalMatch.cuisine || 'Contemporary',
-                        michelinStars: 1, // Default to 1 star (could be refined later)
-                        yearAwarded: new Date().getFullYear(),
-                        address: additionalMatch.rawLocation || '',
-                        latitude: null,
-                        longitude: null,
-                        description: `Michelin restaurant in ${additionalMatch.city}, ${additionalMatch.country}`,
-                        imageUrl: null
-                      }
+                      data: newRestaurantData
                     });
 
                     console.log(`➕ Added new restaurant: ${additionalMatch.name} in ${additionalMatch.city}, ${additionalMatch.country}`);

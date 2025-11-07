@@ -130,23 +130,80 @@ app.post('/update-locations', async (req, res) => {
     });
   }
 
-  // Start location update process
-  locationUpdateStatus = {
-    isRunning: true,
-    lastRun: new Date(),
-    progress: 'Starting restaurant location verification...',
-    result: null,
-    error: null
-  };
+  // Parse filtering options from request body
+  const { filterType, restaurantName, starLevel } = req.body;
 
-  // Return immediately while location update runs in background
-  res.status(202).json({
-    message: 'Location update started',
-    status: locationUpdateStatus
-  });
+  // Validate filter parameters
+  let filterOptions = { filterType: filterType || 'unknown' };
+  let filterDescription = 'restaurants with unknown locations';
 
-  // Run location update in background
-  runLocationUpdateProcess();
+  try {
+    switch (filterOptions.filterType) {
+      case 'all':
+        filterDescription = 'all restaurants';
+        break;
+
+      case 'name':
+        if (!restaurantName) {
+          return res.status(400).json({
+            error: 'Restaurant name is required when filterType is "name"',
+            example: { filterType: 'name', restaurantName: 'Le Bernardin' }
+          });
+        }
+        filterOptions.restaurantName = restaurantName;
+        filterDescription = `restaurants matching "${restaurantName}"`;
+        break;
+
+      case 'stars':
+        const parsedStarLevel = parseInt(starLevel);
+        if (!starLevel || ![1, 2, 3].includes(parsedStarLevel)) {
+          return res.status(400).json({
+            error: 'Star level (1, 2, or 3) is required when filterType is "stars"',
+            example: { filterType: 'stars', starLevel: 1 }
+          });
+        }
+        filterOptions.starLevel = parsedStarLevel;
+        filterDescription = `${parsedStarLevel}-star restaurants`;
+        break;
+
+      case 'unknown':
+      default:
+        filterOptions.filterType = 'unknown';
+        filterDescription = 'restaurants with unknown locations';
+        break;
+    }
+
+    // Start location update process
+    locationUpdateStatus = {
+      isRunning: true,
+      lastRun: new Date(),
+      progress: `Starting location verification for ${filterDescription}...`,
+      result: null,
+      error: null,
+      filterOptions
+    };
+
+    // Return immediately while location update runs in background
+    res.status(202).json({
+      message: `Location update started for ${filterDescription}`,
+      status: locationUpdateStatus,
+      filterOptions
+    });
+
+    // Run location update in background
+    runLocationUpdateProcess(filterOptions);
+
+  } catch (error) {
+    return res.status(400).json({
+      error: 'Invalid filter parameters: ' + error.message,
+      examples: {
+        unknown: { filterType: 'unknown' },
+        all: { filterType: 'all' },
+        name: { filterType: 'name', restaurantName: 'Le Bernardin' },
+        stars: { filterType: 'stars', starLevel: 1 }
+      }
+    });
+  }
 });
 
 // Stop location update
@@ -253,24 +310,29 @@ async function runScrapingProcess(starLevels = [3, 2, 1]) {
   }
 }
 
-async function runLocationUpdateProcess() {
+async function runLocationUpdateProcess(filterOptions = {}) {
   try {
     locationUpdateStatus.progress = 'Initializing location updater...';
 
     const updater = new LocationUpdater();
 
-    locationUpdateStatus.progress = 'Checking restaurants on Michelin Guide for location and cuisine updates...';
+    const filterDescription = locationUpdateStatus.filterOptions ?
+      locationUpdateStatus.progress.replace('Starting location verification for ', '').replace('...', '') :
+      'restaurants';
 
-    const updateResult = await updater.checkRestaurantDetails();
+    locationUpdateStatus.progress = `Checking ${filterDescription} on Michelin Guide for location and cuisine updates...`;
+
+    const updateResult = await updater.checkRestaurantDetails(filterOptions);
 
     locationUpdateStatus.isRunning = false;
     locationUpdateStatus.progress = 'Completed successfully!';
     locationUpdateStatus.result = {
       ...updateResult,
+      filterOptions,
       timestamp: new Date()
     };
 
-    console.log('✅ Location update completed successfully');
+    console.log(`✅ Location update completed successfully for ${filterDescription}`);
 
   } catch (error) {
     console.error('❌ Location update process failed:', error);
@@ -281,6 +343,7 @@ async function runLocationUpdateProcess() {
     locationUpdateStatus.result = {
       success: false,
       error: error.message,
+      filterOptions,
       timestamp: new Date()
     };
   }
@@ -294,7 +357,13 @@ app.listen(PORT, () => {
   console.log(`   GET  /location-status     - Check location update status`);
   console.log(`   POST /scrape              - Start scraping process`);
   console.log(`   POST /stop                - Stop scraping process`);
-  console.log(`   POST /update-locations    - Start location update process`);
+  console.log(`   POST /update-locations    - Start location update process (with filtering)`);
   console.log(`   POST /stop-location-update - Stop location update process`);
   console.log(`   POST /test-restaurant     - Test single restaurant lookup`);
+  console.log(``);
+  console.log(`🔍 Location Update Filtering Options:`);
+  console.log(`   Default (unknown):  { "filterType": "unknown" }`);
+  console.log(`   All restaurants:    { "filterType": "all" }`);
+  console.log(`   By name:           { "filterType": "name", "restaurantName": "Le Bernardin" }`);
+  console.log(`   By stars:          { "filterType": "stars", "starLevel": 1 }`);
 });
