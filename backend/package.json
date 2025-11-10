@@ -15,7 +15,11 @@
     "scrape-michelin": "cd scripts && npm install && npm run scrape",
     "seed-production": "cd scripts && npm install && npm run seed-production",
     "seed-production-clear": "cd scripts && npm install && npm run seed-production-clear",
-    "refresh-restaurants": "npm run scrape-michelin && npm run seed-production-clear"
+    "refresh-restaurants": "npm run scrape-michelin && npm run seed-production-clear",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
+    "test:verbose": "jest --verbose --runInBand"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -35,9 +39,14 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.15",
     "@types/express": "^4.17.20",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.8.10",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
     "nodemon": "^3.0.1",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.5",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
   },

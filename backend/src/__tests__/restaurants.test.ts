@@ -1,0 +1,293 @@
+import request from 'supertest';
+import { createTestApp } from './utils/testApp';
+import { createTestRestaurant, createTestUser, createTestVisit } from './utils/testHelpers';
+
+const app = createTestApp();
+
+describe('Restaurant Routes', () => {
+  describe('GET /api/restaurants', () => {
+    it('should return paginated list of restaurants', async () => {
+      await createTestRestaurant({ name: 'Restaurant A', michelinStars: 3 });
+      await createTestRestaurant({ name: 'Restaurant B', michelinStars: 1 });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('restaurants');
+      expect(response.body).toHaveProperty('pagination');
+      expect(Array.isArray(response.body.restaurants)).toBe(true);
+      expect(response.body.restaurants.length).toBeGreaterThan(0);
+      expect(response.body.pagination).toMatchObject({
+        current: 1,
+        total: expect.any(Number),
+        count: expect.any(Number),
+        totalCount: expect.any(Number),
+      });
+    });
+
+    it('should filter restaurants by Michelin stars', async () => {
+      await createTestRestaurant({ name: '3-Star Restaurant', michelinStars: 3 });
+      await createTestRestaurant({ name: '1-Star Restaurant', michelinStars: 1 });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .query({ michelinStars: 3 })
+        .expect(200);
+
+      expect(response.body.restaurants).toHaveLength(1);
+      expect(response.body.restaurants[0].name).toBe('3-Star Restaurant');
+      expect(response.body.restaurants[0].michelinStars).toBe(3);
+    });
+
+    it('should filter restaurants by country', async () => {
+      await createTestRestaurant({ name: 'French Restaurant', country: 'France' });
+      await createTestRestaurant({ name: 'Italian Restaurant', country: 'Italy' });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .query({ country: 'France' })
+        .expect(200);
+
+      expect(response.body.restaurants).toHaveLength(1);
+      expect(response.body.restaurants[0].country).toContain('France');
+    });
+
+    it('should filter restaurants by city', async () => {
+      await createTestRestaurant({ name: 'Paris Restaurant', city: 'Paris' });
+      await createTestRestaurant({ name: 'Lyon Restaurant', city: 'Lyon' });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .query({ city: 'Paris' })
+        .expect(200);
+
+      expect(response.body.restaurants).toHaveLength(1);
+      expect(response.body.restaurants[0].city).toContain('Paris');
+    });
+
+    it('should filter restaurants by cuisine type', async () => {
+      await createTestRestaurant({ name: 'French Place', cuisineType: 'French' });
+      await createTestRestaurant({ name: 'Japanese Place', cuisineType: 'Japanese' });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .query({ cuisineType: 'Japanese' })
+        .expect(200);
+
+      expect(response.body.restaurants).toHaveLength(1);
+      expect(response.body.restaurants[0].cuisineType).toContain('Japanese');
+    });
+
+    it('should search restaurants by name', async () => {
+      await createTestRestaurant({ name: 'Le Grand Restaurant' });
+      await createTestRestaurant({ name: 'Sushi Bar' });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .query({ search: 'Grand' })
+        .expect(200);
+
+      expect(response.body.restaurants).toHaveLength(1);
+      expect(response.body.restaurants[0].name).toContain('Grand');
+    });
+
+    it('should support pagination', async () => {
+      // Create 5 restaurants
+      for (let i = 1; i <= 5; i++) {
+        await createTestRestaurant({ name: `Restaurant ${i}` });
+      }
+
+      const page1 = await request(app)
+        .get('/api/restaurants')
+        .query({ page: 1, limit: 2 })
+        .expect(200);
+
+      expect(page1.body.restaurants).toHaveLength(2);
+      expect(page1.body.pagination.current).toBe(1);
+
+      const page2 = await request(app)
+        .get('/api/restaurants')
+        .query({ page: 2, limit: 2 })
+        .expect(200);
+
+      expect(page2.body.restaurants).toHaveLength(2);
+      expect(page2.body.pagination.current).toBe(2);
+    });
+
+    it('should order restaurants by stars desc then name asc', async () => {
+      await createTestRestaurant({ name: 'C Restaurant', michelinStars: 1 });
+      await createTestRestaurant({ name: 'A Restaurant', michelinStars: 3 });
+      await createTestRestaurant({ name: 'B Restaurant', michelinStars: 3 });
+
+      const response = await request(app)
+        .get('/api/restaurants')
+        .expect(200);
+
+      const names = response.body.restaurants.map((r: any) => r.name);
+      expect(names[0]).toBe('A Restaurant'); // 3 stars, A comes first
+      expect(names[1]).toBe('B Restaurant'); // 3 stars, B comes second
+    });
+  });
+
+  describe('GET /api/restaurants/filters', () => {
+    it('should return available filter options', async () => {
+      await createTestRestaurant({
+        country: 'France',
+        city: 'Paris',
+        cuisineType: 'French',
+      });
+      await createTestRestaurant({
+        country: 'Italy',
+        city: 'Rome',
+        cuisineType: 'Italian',
+      });
+
+      const response = await request(app)
+        .get('/api/restaurants/filters')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('countries');
+      expect(response.body).toHaveProperty('cities');
+      expect(response.body).toHaveProperty('cuisineTypes');
+      expect(Array.isArray(response.body.countries)).toBe(true);
+      expect(response.body.countries.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('GET /api/restaurants/:id', () => {
+    it('should return restaurant details by id', async () => {
+      const restaurant = await createTestRestaurant({
+        name: 'Test Restaurant',
+        city: 'Paris',
+        country: 'France',
+        michelinStars: 2,
+      });
+
+      const response = await request(app)
+        .get(`/api/restaurants/${restaurant.id}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: restaurant.id,
+        name: 'Test Restaurant',
+        city: 'Paris',
+        country: 'France',
+        michelinStars: 2,
+      });
+      expect(response.body).toHaveProperty('visits');
+    });
+
+    it('should include recent visits with restaurant details', async () => {
+      const user = await createTestUser();
+      const restaurant = await createTestRestaurant();
+      await createTestVisit(user.id, restaurant.id, {
+        notes: 'Great meal!',
+      });
+
+      const response = await request(app)
+        .get(`/api/restaurants/${restaurant.id}`)
+        .expect(200);
+
+      expect(response.body.visits).toHaveLength(1);
+      expect(response.body.visits[0]).toHaveProperty('user');
+      expect(response.body.visits[0].user.username).toBe(user.username);
+    });
+
+    it('should return 404 for non-existent restaurant', async () => {
+      const response = await request(app)
+        .get('/api/restaurants/non-existent-id')
+        .expect(404);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('not found');
+    });
+  });
+
+  describe('PUT /api/restaurants/:id', () => {
+    it('should update restaurant details', async () => {
+      const restaurant = await createTestRestaurant({
+        name: 'Original Name',
+        city: 'Paris',
+      });
+
+      const response = await request(app)
+        .put(`/api/restaurants/${restaurant.id}`)
+        .send({
+          name: 'Updated Name',
+          city: 'Lyon',
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.restaurant.name).toBe('Updated Name');
+      expect(response.body.restaurant.city).toBe('Lyon');
+    });
+
+    it('should return 404 when updating non-existent restaurant', async () => {
+      const response = await request(app)
+        .put('/api/restaurants/non-existent-id')
+        .send({ name: 'New Name' })
+        .expect(404);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should partially update restaurant fields', async () => {
+      const restaurant = await createTestRestaurant({
+        name: 'Original Name',
+        description: 'Original description',
+      });
+
+      const response = await request(app)
+        .put(`/api/restaurants/${restaurant.id}`)
+        .send({
+          description: 'Updated description',
+        })
+        .expect(200);
+
+      expect(response.body.restaurant.name).toBe('Original Name');
+      expect(response.body.restaurant.description).toBe('Updated description');
+    });
+  });
+
+  describe('DELETE /api/restaurants/:id', () => {
+    it('should delete restaurant and its visits', async () => {
+      const user = await createTestUser();
+      const restaurant = await createTestRestaurant({ name: 'To Delete' });
+      await createTestVisit(user.id, restaurant.id);
+
+      const response = await request(app)
+        .delete(`/api/restaurants/${restaurant.id}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.deletedVisits).toBe(1);
+      expect(response.body.message).toContain('To Delete');
+
+      // Verify restaurant is deleted
+      const checkResponse = await request(app)
+        .get(`/api/restaurants/${restaurant.id}`)
+        .expect(404);
+    });
+
+    it('should return 404 when deleting non-existent restaurant', async () => {
+      const response = await request(app)
+        .delete('/api/restaurants/non-existent-id')
+        .expect(404);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should delete restaurant with no visits', async () => {
+      const restaurant = await createTestRestaurant();
+
+      const response = await request(app)
+        .delete(`/api/restaurants/${restaurant.id}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.deletedVisits).toBe(0);
+    });
+  });
+});
