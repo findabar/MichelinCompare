@@ -5,9 +5,7 @@ import { createError } from '../middleware/errorHandler';
 
 const router = express.Router();
 
-router.use(authenticateToken);
-
-router.get('/profile', async (req: AuthRequest, res, next) => {
+router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const userId = req.userId!;
 
