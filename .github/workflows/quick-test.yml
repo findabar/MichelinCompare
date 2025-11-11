@@ -43,9 +43,9 @@ jobs:
         working-directory: backend
         run: npx prisma generate
 
-      - name: Run migrations
+      - name: Push database schema
         working-directory: backend
-        run: npx prisma migrate deploy
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/michelin_test?schema=public
 
