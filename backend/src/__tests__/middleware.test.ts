@@ -72,32 +72,30 @@ describe('Middleware Tests', () => {
       );
     });
 
-    it('should reject expired token', () => {
+    it('should reject expired token', (done) => {
       const expiredToken = jwt.sign(
         { userId: 'test-user-id' },
         process.env.JWT_SECRET!,
-        { expiresIn: '0s' }
+        { expiresIn: '-1s' } // Already expired
       );
 
       mockRequest.headers = {
         authorization: `Bearer ${expiredToken}`,
       };
 
-      // Wait a moment for token to expire
-      setTimeout(() => {
-        authenticateToken(
-          mockRequest as AuthRequest,
-          mockResponse as Response,
-          mockNext
-        );
+      authenticateToken(
+        mockRequest as AuthRequest,
+        mockResponse as Response,
+        mockNext
+      );
 
-        expect(mockNext).toHaveBeenCalledWith(
-          expect.objectContaining({
-            message: 'Invalid or expired token',
-            statusCode: 403,
-          })
-        );
-      }, 100);
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Invalid or expired token',
+          statusCode: 403,
+        })
+      );
+      done();
     });
 
     it('should reject token with invalid signature', () => {
