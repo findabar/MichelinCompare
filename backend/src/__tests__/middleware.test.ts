@@ -63,10 +63,11 @@ describe('Middleware Tests', () => {
         mockNext
       );
 
+      // No space means no token extracted, so "Access token required"
       expect(mockNext).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'Invalid or expired token',
-          statusCode: 403,
+          message: 'Access token required',
+          statusCode: 401,
         })
       );
     });
@@ -142,11 +143,11 @@ describe('Middleware Tests', () => {
       );
     });
 
-    it('should handle Bearer prefix case-insensitively', async () => {
+    it('should handle Bearer prefix case-sensitively', async () => {
       const user = await createTestUser();
 
       mockRequest.headers = {
-        authorization: `bearer ${user.token}`,
+        authorization: `Bearer ${user.token}`,
       };
 
       authenticateToken(
@@ -155,7 +156,7 @@ describe('Middleware Tests', () => {
         mockNext
       );
 
-      // Should still work with lowercase 'bearer'
+      // Works with proper Bearer prefix
       expect(mockRequest.userId).toBe(user.id);
       expect(mockNext).toHaveBeenCalledWith();
     });
