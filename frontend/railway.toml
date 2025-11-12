@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "npm run preview"
+
+[services.variables]
+NODE_ENV = "production"
+VITE_API_URL = "${{ VITE_API_URL }}"

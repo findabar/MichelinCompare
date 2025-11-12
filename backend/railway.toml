@@ -1,0 +1,14 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npx prisma generate && npm run build"
+
+[deploy]
+startCommand = "npx prisma db push && node dist/server.js"
+
+[services.variables]
+NODE_ENV = "production"
+PORT = "${{ PORT }}"
+JWT_SECRET = "${{ JWT_SECRET }}"
+JWT_EXPIRES_IN = "7d"
+FRONTEND_URL = "${{ FRONTEND_URL }}"
+DATABASE_URL = "${{ DATABASE_URL }}"
