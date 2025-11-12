@@ -11,3 +11,6 @@ name = "backend"
 [services.variables]
 NODE_ENV = "production"
 PORT = "${{ PORT }}"
+JWT_SECRET = "${{ JWT_SECRET }}"
+JWT_EXPIRES_IN = "7d"
+FRONTEND_URL = "${{ FRONTEND_URL }}"
