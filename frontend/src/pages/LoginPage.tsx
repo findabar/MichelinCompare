@@ -25,7 +25,9 @@ const LoginPage = () => {
       toast.success('Welcome back!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.response?.data?.error?.message || 'Login failed');
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Login failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

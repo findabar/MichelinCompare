@@ -33,7 +33,9 @@ const RegisterPage = () => {
       toast.success('Account created successfully!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.response?.data?.error?.message || 'Registration failed');
+      console.error('Registration error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Registration failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
