@@ -1,35 +1,29 @@
-name: Issue Triage
+name: Claude Issue Triage
+description: Run Claude Code for issue triage in GitHub Actions
 on:
   issues:
     types: [opened]
 
 jobs:
-  triage:
+  triage-issue:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
+      contents: read
       issues: write
-      id-token: write
+
     steps:
-      - uses: anthropics/claude-code-action@v1
+      - name: Checkout repository
+        uses: actions/checkout@v5
         with:
+          fetch-depth: 0
+
+      - name: Run Claude Code for Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          # NOTE: /label-issue here requires a .claude/commands/label-issue.md file in your repo (see this repo's .claude directory for an example)
+          prompt: "/label-issue REPO: ${{ github.repository }} ISSUE_NUMBER${{ github.event.issue.number }}"
+
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            ISSUE NUMBER: ${{ github.event.issue.number }}
-            TITLE: ${{ github.event.issue.title }}
-            BODY: ${{ github.event.issue.body }}
-            AUTHOR: ${{ github.event.issue.user.login }}
-
-            Analyze this new issue and:
-            1. Determine if it's a bug report, feature request, or question
-            2. Assess priority (critical, high, medium, low)
-            3. Suggest appropriate labels
-            4. Check if it duplicates existing issues
-
-            Based on your analysis, add the appropriate labels using:
-            `gh issue edit [number] --add-label "label1,label2"`
-
-            If it appears to be a duplicate, post a comment mentioning the original issue.
-
-          claude_args: |
-            --allowedTools "Bash(gh issue:*),Bash(gh search:*)"
+          allowed_non_write_users: "*" # Required for issue triage workflow, if users without repo write access create issues
+          github_token: ${{ secrets.GITHUB_TOKEN }}
