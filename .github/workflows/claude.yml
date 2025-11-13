@@ -12,6 +12,7 @@ on:
 
 jobs:
   claude:
+    timeout-minutes: 30  # Add this at job level
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -31,6 +32,7 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude Code
+        timeout-minutes: 20  # Or at step level
         id: claude
         uses: anthropics/claude-code-action@main
         with:
