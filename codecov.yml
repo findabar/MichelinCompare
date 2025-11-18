@@ -1,7 +1,7 @@
 codecov:
   require_ci_to_pass: yes
   notify:
-    after_n_builds: 2  # Wait for both Node 18 and 20 builds
+    after_n_builds: 2  # Wait for both Node 18.x and 20.x matrix builds
 
 coverage:
   precision: 2
