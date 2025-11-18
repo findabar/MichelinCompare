@@ -49,13 +49,23 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/michelin_test?schema=public
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: backend
-        run: npm test
+        run: npm run test:coverage
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/michelin_test?schema=public
           JWT_SECRET: test-secret-key
           NODE_ENV: test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./backend/coverage/lcov.info
+          flags: backend
+          name: quick-test-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Test summary
         if: always()

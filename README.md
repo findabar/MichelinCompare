@@ -1,5 +1,7 @@
 # Michelin Star Hunter 🌟
 
+[![codecov](https://codecov.io/gh/findabar/MichellinCompare/branch/main/graph/badge.svg)](https://codecov.io/gh/findabar/MichellinCompare)
+
 A gamified platform where users can track visits to Michelin-starred restaurants and compete for the highest score.
 
 ## Features
