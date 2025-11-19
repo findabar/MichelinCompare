@@ -495,6 +495,121 @@ router.get('/duplicates', async (_req, res, next) => {
   }
 });
 
+// GET /api/scraper/preview-update/:id - Preview update data for a single restaurant (requires authentication)
+router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get current restaurant data from database
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+    });
+
+    if (!restaurant) {
+      return res.status(404).json({
+        error: 'Restaurant not found',
+      });
+    }
+
+    console.log(`🔍 Fetching preview update for: ${restaurant.name}`);
+
+    // Call the scraper service to get fresh data from Michelin
+    const scraperResult = await makeRequest(`${SCRAPER_SERVICE_URL}/test-restaurant`, {
+      method: 'POST',
+      data: { restaurantName: restaurant.name }
+    });
+
+    // Find the best matching restaurant from scraper results
+    let matchedRestaurant = null;
+    if (scraperResult.result?.restaurants?.length > 0) {
+      // Try to find exact match first
+      matchedRestaurant = scraperResult.result.restaurants.find(
+        (r: any) => r.name.toLowerCase() === restaurant.name.toLowerCase()
+      );
+      // If no exact match, use the first result
+      if (!matchedRestaurant) {
+        matchedRestaurant = scraperResult.result.restaurants[0];
+      }
+    }
+
+    // If we found a match, also fetch the restaurant page for more details
+    let additionalDetails = {};
+    if (matchedRestaurant?.url) {
+      try {
+        // Get detailed info from the restaurant page via a new scraper endpoint
+        // For now, we'll work with what we have from the search results
+        additionalDetails = {
+          michelinUrl: matchedRestaurant.url,
+        };
+      } catch (err) {
+        console.log('Could not fetch additional details from restaurant page');
+      }
+    }
+
+    // Build comparison data
+    const comparison = {
+      current: {
+        id: restaurant.id,
+        name: restaurant.name,
+        city: restaurant.city,
+        country: restaurant.country,
+        cuisineType: restaurant.cuisineType,
+        michelinStars: restaurant.michelinStars,
+        address: restaurant.address,
+        phone: restaurant.phone,
+        website: restaurant.website,
+        description: restaurant.description,
+        michelinUrl: restaurant.michelinUrl,
+      },
+      scraped: matchedRestaurant ? {
+        name: matchedRestaurant.name,
+        city: matchedRestaurant.city || restaurant.city,
+        country: matchedRestaurant.country || restaurant.country,
+        cuisineType: matchedRestaurant.cuisine || restaurant.cuisineType,
+        michelinUrl: matchedRestaurant.url || restaurant.michelinUrl,
+      } : null,
+      differences: [] as string[],
+    };
+
+    // Calculate differences
+    if (matchedRestaurant) {
+      if (matchedRestaurant.name && matchedRestaurant.name !== restaurant.name) {
+        comparison.differences.push('name');
+      }
+      if (matchedRestaurant.city && matchedRestaurant.city !== restaurant.city) {
+        comparison.differences.push('city');
+      }
+      if (matchedRestaurant.country && matchedRestaurant.country !== restaurant.country) {
+        comparison.differences.push('country');
+      }
+      if (matchedRestaurant.cuisine && matchedRestaurant.cuisine !== restaurant.cuisineType) {
+        comparison.differences.push('cuisineType');
+      }
+      if (matchedRestaurant.url && matchedRestaurant.url !== restaurant.michelinUrl) {
+        comparison.differences.push('michelinUrl');
+      }
+    }
+
+    res.json({
+      success: true,
+      restaurantId: id,
+      comparison,
+      hasDifferences: comparison.differences.length > 0,
+      scraperResult: scraperResult.result,
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to preview restaurant update:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Request failed')) {
+      return next(createError('Scraper service unavailable. Please ensure the scraper service is running.', 503));
+    }
+
+    next(createError(`Failed to preview update: ${errorMessage}`, 500));
+  }
+});
+
 // POST /api/scraper/merge - Automatically find and merge all duplicate restaurants (requires authentication)
 router.post('/merge', adminAuth, async (_req, res, next) => {
   try {

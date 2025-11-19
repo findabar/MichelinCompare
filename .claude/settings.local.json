@@ -5,7 +5,12 @@
       "Bash(railway logs:*)",
       "Bash(git push:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm test:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(railway variables:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

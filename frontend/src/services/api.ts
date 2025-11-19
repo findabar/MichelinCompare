@@ -93,4 +93,36 @@ export const feedbackAPI = {
     api.post<{ success: boolean; message: string }>('/feedback', data),
 };
 
+export const scraperAPI = {
+  previewUpdate: (id: string) =>
+    api.get<{
+      success: boolean;
+      restaurantId: string;
+      comparison: {
+        current: {
+          id: string;
+          name: string;
+          city: string;
+          country: string;
+          cuisineType: string;
+          michelinStars: number;
+          address: string;
+          phone: string | null;
+          website: string | null;
+          description: string | null;
+          michelinUrl: string | null;
+        };
+        scraped: {
+          name: string;
+          city: string;
+          country: string;
+          cuisineType: string;
+          michelinUrl: string | null;
+        } | null;
+        differences: string[];
+      };
+      hasDifferences: boolean;
+    }>(`/scraper/preview-update/${id}`),
+};
+
 export default api;

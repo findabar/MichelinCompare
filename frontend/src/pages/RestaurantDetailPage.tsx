@@ -3,8 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Star, MapPin, User, Plus, Trash2, Edit3, Save, X } from 'lucide-react';
-import { restaurantAPI, visitAPI } from '../services/api';
+import { Star, MapPin, User, Plus, Trash2, Edit3, Save, X, RefreshCw } from 'lucide-react';
+import { restaurantAPI, visitAPI, scraperAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -30,6 +30,12 @@ const RestaurantDetailPage = () => {
   const [showVisitForm, setShowVisitForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updatePreview, setUpdatePreview] = useState<{
+    current: any;
+    scraped: any;
+    differences: string[];
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<VisitForm>({
@@ -90,6 +96,41 @@ const RestaurantDetailPage = () => {
     }
   );
 
+  const previewUpdateMutation = useMutation(
+    () => scraperAPI.previewUpdate(id!),
+    {
+      onSuccess: (response) => {
+        if (response.data.comparison.scraped) {
+          setUpdatePreview(response.data.comparison);
+          setShowUpdateModal(true);
+          if (!response.data.hasDifferences) {
+            toast.success('Restaurant data is already up to date!');
+          }
+        } else {
+          toast.error('Could not find restaurant on Michelin Guide');
+        }
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.error || 'Failed to fetch update preview');
+      },
+    }
+  );
+
+  const applyUpdateMutation = useMutation(
+    (data: Partial<EditForm>) => restaurantAPI.updateRestaurant(id!, data),
+    {
+      onSuccess: () => {
+        toast.success('Restaurant updated with Michelin data!');
+        queryClient.invalidateQueries(['restaurant', id]);
+        setShowUpdateModal(false);
+        setUpdatePreview(null);
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.error || 'Failed to apply update');
+      },
+    }
+  );
+
   const onSubmitVisit = (data: VisitForm) => {
     createVisitMutation.mutate({
       restaurantId: id!,
@@ -125,6 +166,27 @@ const RestaurantDetailPage = () => {
 
   const onSubmitEdit = (data: EditForm) => {
     updateRestaurantMutation.mutate(data);
+  };
+
+  const handleApplyUpdate = () => {
+    if (!updatePreview?.scraped) return;
+
+    const updateData: Partial<EditForm> = {};
+
+    if (updatePreview.differences.includes('name')) {
+      updateData.name = updatePreview.scraped.name;
+    }
+    if (updatePreview.differences.includes('city')) {
+      updateData.city = updatePreview.scraped.city;
+    }
+    if (updatePreview.differences.includes('country')) {
+      updateData.country = updatePreview.scraped.country;
+    }
+    if (updatePreview.differences.includes('cuisineType')) {
+      updateData.cuisineType = updatePreview.scraped.cuisineType;
+    }
+
+    applyUpdateMutation.mutate(updateData);
   };
 
   if (isLoading) {
@@ -209,14 +271,25 @@ const RestaurantDetailPage = () => {
             {user && (
               <div className="flex items-center space-x-2">
                 {!isEditing ? (
-                  <button
-                    type="button"
-                    onClick={handleEditStart}
-                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Edit restaurant"
-                  >
-                    <Edit3 className="h-5 w-5" />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => previewUpdateMutation.mutate()}
+                      disabled={previewUpdateMutation.isLoading}
+                      className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-50"
+                      title="Check for updates from Michelin"
+                    >
+                      <RefreshCw className={`h-5 w-5 ${previewUpdateMutation.isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEditStart}
+                      className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit restaurant"
+                    >
+                      <Edit3 className="h-5 w-5" />
+                    </button>
+                  </>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <button
@@ -476,6 +549,111 @@ const RestaurantDetailPage = () => {
                 className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Comparison Modal */}
+      {showUpdateModal && updatePreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              {updatePreview.differences.length > 0 ? 'Updates Available from Michelin' : 'Restaurant Data Comparison'}
+            </h3>
+
+            {updatePreview.differences.length === 0 ? (
+              <p className="text-gray-600 mb-6">
+                No differences found. Your restaurant data matches the Michelin Guide.
+              </p>
+            ) : (
+              <div className="space-y-4 mb-6">
+                <p className="text-gray-600">
+                  The following fields differ from the Michelin Guide:
+                </p>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  {updatePreview.differences.includes('name') && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-500">Name</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-red-600 line-through">{updatePreview.current.name}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-green-600 font-medium">{updatePreview.scraped.name}</span>
+                      </div>
+                    </div>
+                  )}
+                  {updatePreview.differences.includes('city') && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-500">City</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-red-600 line-through">{updatePreview.current.city}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-green-600 font-medium">{updatePreview.scraped.city}</span>
+                      </div>
+                    </div>
+                  )}
+                  {updatePreview.differences.includes('country') && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-500">Country</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-red-600 line-through">{updatePreview.current.country}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-green-600 font-medium">{updatePreview.scraped.country}</span>
+                      </div>
+                    </div>
+                  )}
+                  {updatePreview.differences.includes('cuisineType') && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-500">Cuisine Type</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-red-600 line-through">{updatePreview.current.cuisineType}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-green-600 font-medium">{updatePreview.scraped.cuisineType}</span>
+                      </div>
+                    </div>
+                  )}
+                  {updatePreview.differences.includes('michelinUrl') && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-500">Michelin URL</span>
+                      <div className="text-sm break-all">
+                        <span className="text-gray-400">New: </span>
+                        <a
+                          href={updatePreview.scraped.michelinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {updatePreview.scraped.michelinUrl}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex space-x-3">
+              {updatePreview.differences.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleApplyUpdate}
+                  disabled={applyUpdateMutation.isLoading}
+                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+                >
+                  {applyUpdateMutation.isLoading ? 'Applying...' : 'Accept Changes'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpdateModal(false);
+                  setUpdatePreview(null);
+                }}
+                disabled={applyUpdateMutation.isLoading}
+                className={`${updatePreview.differences.length > 0 ? 'flex-1' : 'w-full'} bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium`}
+              >
+                {updatePreview.differences.length > 0 ? 'Reject' : 'Close'}
               </button>
             </div>
           </div>
