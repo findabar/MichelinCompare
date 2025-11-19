@@ -11,6 +11,7 @@ const prisma = new PrismaClient();
 interface DuplicateGroup {
   name: string;
   matchedOn: string[];
+  restaurantIds: string[];
   restaurants: {
     id: string;
     name: string;
@@ -75,12 +76,126 @@ async function findDuplicateRestaurants(): Promise<DuplicateGroup[]> {
       duplicates.push({
         name: group[0].name,
         matchedOn,
+        restaurantIds: group.map(r => r.id),
         restaurants: group,
       });
     }
   }
 
   return duplicates;
+}
+
+// Helper function to pick the best string value (prefer non-empty, non-unknown)
+function pickBestString(values: (string | null | undefined)[]): string {
+  const validValues = values.filter(v =>
+    v &&
+    v.trim() !== '' &&
+    v.toLowerCase() !== 'unknown' &&
+    v.toLowerCase() !== 'n/a' &&
+    v.toLowerCase() !== 'none'
+  );
+  return validValues[0] || values.find(v => v && v.trim() !== '') || '';
+}
+
+// Helper function to pick the best number value (prefer non-zero)
+function pickBestNumber(values: (number | null | undefined)[]): number {
+  const validValues = values.filter(v => v !== null && v !== undefined && v !== 0);
+  return validValues[0] || values.find(v => v !== null && v !== undefined) || 0;
+}
+
+// Helper function to pick the best optional value (prefer non-null)
+function pickBestOptional<T>(values: (T | null | undefined)[]): T | null {
+  return values.find(v => v !== null && v !== undefined) || null;
+}
+
+// Function to merge duplicate restaurants
+async function mergeRestaurants(restaurantIds: string[]): Promise<{
+  mergedId: string;
+  deletedIds: string[];
+  mergedData: any;
+  visitsTransferred: number;
+}> {
+  if (restaurantIds.length < 2) {
+    throw new Error('At least 2 restaurant IDs are required for merging');
+  }
+
+  // Fetch all restaurants to merge
+  const restaurants = await prisma.restaurant.findMany({
+    where: { id: { in: restaurantIds } },
+  });
+
+  if (restaurants.length !== restaurantIds.length) {
+    const foundIds = restaurants.map(r => r.id);
+    const missingIds = restaurantIds.filter(id => !foundIds.includes(id));
+    throw new Error(`Restaurants not found: ${missingIds.join(', ')}`);
+  }
+
+  // Keep the first restaurant, merge data from others
+  const primaryRestaurant = restaurants[0];
+  const idsToDelete = restaurantIds.slice(1);
+
+  // Merge data, picking best values
+  const mergedData = {
+    name: pickBestString(restaurants.map(r => r.name)),
+    city: pickBestString(restaurants.map(r => r.city)),
+    country: pickBestString(restaurants.map(r => r.country)),
+    cuisineType: pickBestString(restaurants.map(r => r.cuisineType)),
+    michelinStars: pickBestNumber(restaurants.map(r => r.michelinStars)),
+    yearAwarded: pickBestNumber(restaurants.map(r => r.yearAwarded)),
+    address: pickBestString(restaurants.map(r => r.address)),
+    latitude: pickBestOptional(restaurants.map(r => r.latitude)),
+    longitude: pickBestOptional(restaurants.map(r => r.longitude)),
+    description: pickBestOptional(restaurants.map(r => r.description)),
+    imageUrl: pickBestOptional(restaurants.map(r => r.imageUrl)),
+    phone: pickBestOptional(restaurants.map(r => r.phone)),
+    website: pickBestOptional(restaurants.map(r => r.website)),
+    michelinUrl: pickBestOptional(restaurants.map(r => r.michelinUrl)),
+  };
+
+  // Use transaction to ensure data consistency
+  const result = await prisma.$transaction(async (tx) => {
+    // Update primary restaurant with merged data
+    await tx.restaurant.update({
+      where: { id: primaryRestaurant.id },
+      data: mergedData,
+    });
+
+    // Transfer visits from deleted restaurants to primary
+    // First, get visits that would create duplicates
+    const existingVisits = await tx.userVisit.findMany({
+      where: { restaurantId: primaryRestaurant.id },
+      select: { userId: true },
+    });
+    const existingUserIds = new Set(existingVisits.map(v => v.userId));
+
+    // Delete visits that would create duplicates
+    await tx.userVisit.deleteMany({
+      where: {
+        restaurantId: { in: idsToDelete },
+        userId: { in: Array.from(existingUserIds) },
+      },
+    });
+
+    // Transfer remaining visits to primary restaurant
+    const updateResult = await tx.userVisit.updateMany({
+      where: { restaurantId: { in: idsToDelete } },
+      data: { restaurantId: primaryRestaurant.id },
+    });
+
+    // Delete duplicate restaurants
+    await tx.restaurant.deleteMany({
+      where: { id: { in: idsToDelete } },
+    });
+
+    return updateResult.count;
+  });
+
+  return {
+    mergedId: primaryRestaurant.id,
+    deletedIds: idsToDelete,
+    mergedData,
+    visitsTransferred: result,
+  };
 }
 
 const router = express.Router();
@@ -377,6 +492,81 @@ router.get('/duplicates', async (_req, res, next) => {
     console.error('❌ Failed to find duplicate restaurants:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     next(createError(`Failed to find duplicates: ${errorMessage}`, 500));
+  }
+});
+
+// POST /api/scraper/merge - Automatically find and merge all duplicate restaurants (requires authentication)
+router.post('/merge', adminAuth, async (_req, res, next) => {
+  try {
+    console.log('🔍 Finding duplicate restaurants to merge...');
+
+    // Find all duplicate groups
+    const duplicates = await findDuplicateRestaurants();
+
+    if (duplicates.length === 0) {
+      return res.json({
+        message: 'No duplicate restaurants found to merge',
+        groupsMerged: 0,
+        totalRestaurantsDeleted: 0,
+        totalVisitsTransferred: 0,
+        results: [],
+      });
+    }
+
+    console.log(`🔀 Found ${duplicates.length} duplicate groups to merge`);
+
+    // Merge each duplicate group separately
+    const results: {
+      groupName: string;
+      mergedId: string;
+      deletedIds: string[];
+      visitsTransferred: number;
+    }[] = [];
+
+    let totalDeleted = 0;
+    let totalVisitsTransferred = 0;
+
+    for (const group of duplicates) {
+      try {
+        console.log(`  Merging group: ${group.name} (${group.restaurantIds.length} restaurants)`);
+
+        const result = await mergeRestaurants(group.restaurantIds);
+
+        results.push({
+          groupName: group.name,
+          mergedId: result.mergedId,
+          deletedIds: result.deletedIds,
+          visitsTransferred: result.visitsTransferred,
+        });
+
+        totalDeleted += result.deletedIds.length;
+        totalVisitsTransferred += result.visitsTransferred;
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`  ❌ Failed to merge group ${group.name}: ${errorMessage}`);
+
+        results.push({
+          groupName: group.name,
+          mergedId: 'error',
+          deletedIds: [],
+          visitsTransferred: 0,
+        });
+      }
+    }
+
+    res.json({
+      message: `Successfully merged ${duplicates.length} duplicate groups`,
+      groupsMerged: duplicates.length,
+      totalRestaurantsDeleted: totalDeleted,
+      totalVisitsTransferred,
+      results,
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to merge duplicate restaurants:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    next(createError(`Failed to merge duplicates: ${errorMessage}`, 500));
   }
 });
 
