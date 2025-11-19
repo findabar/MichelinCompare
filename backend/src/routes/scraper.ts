@@ -563,10 +563,11 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
       },
       scraped: matchedRestaurant ? {
         name: matchedRestaurant.name,
-        city: matchedRestaurant.city || restaurant.city,
-        country: matchedRestaurant.country || restaurant.country,
-        cuisineType: matchedRestaurant.cuisine || restaurant.cuisineType,
-        michelinUrl: matchedRestaurant.url || restaurant.michelinUrl,
+        city: matchedRestaurant.city,
+        country: matchedRestaurant.country,
+        cuisineType: matchedRestaurant.cuisine,
+        michelinStars: matchedRestaurant.michelinStars ? parseInt(matchedRestaurant.michelinStars) : null,
+        michelinUrl: matchedRestaurant.url,
       } : null,
       differences: [] as string[],
     };
@@ -584,6 +585,9 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
       }
       if (matchedRestaurant.cuisine && matchedRestaurant.cuisine !== restaurant.cuisineType) {
         comparison.differences.push('cuisineType');
+      }
+      if (matchedRestaurant.michelinStars && parseInt(matchedRestaurant.michelinStars) !== restaurant.michelinStars) {
+        comparison.differences.push('michelinStars');
       }
       if (matchedRestaurant.url && matchedRestaurant.url !== restaurant.michelinUrl) {
         comparison.differences.push('michelinUrl');

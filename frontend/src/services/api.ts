@@ -117,6 +117,7 @@ export const scraperAPI = {
           city: string;
           country: string;
           cuisineType: string;
+          michelinStars: number | null;
           michelinUrl: string | null;
         } | null;
         differences: string[];

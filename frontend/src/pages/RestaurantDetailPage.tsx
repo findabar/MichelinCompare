@@ -185,6 +185,9 @@ const RestaurantDetailPage = () => {
     if (updatePreview.differences.includes('cuisineType')) {
       updateData.cuisineType = updatePreview.scraped.cuisineType;
     }
+    if (updatePreview.differences.includes('michelinStars') && updatePreview.scraped.michelinStars) {
+      updateData.michelinStars = updatePreview.scraped.michelinStars;
+    }
 
     applyUpdateMutation.mutate(updateData);
   };
@@ -610,6 +613,16 @@ const RestaurantDetailPage = () => {
                         <span className="text-red-600 line-through">{updatePreview.current.cuisineType}</span>
                         <span className="text-gray-400">→</span>
                         <span className="text-green-600 font-medium">{updatePreview.scraped.cuisineType}</span>
+                      </div>
+                    </div>
+                  )}
+                  {updatePreview.differences.includes('michelinStars') && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-500">Michelin Stars</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-red-600 line-through">{updatePreview.current.michelinStars} Star{updatePreview.current.michelinStars !== 1 ? 's' : ''}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-green-600 font-medium">{updatePreview.scraped.michelinStars} Star{updatePreview.scraped.michelinStars !== 1 ? 's' : ''}</span>
                       </div>
                     </div>
                   )}
