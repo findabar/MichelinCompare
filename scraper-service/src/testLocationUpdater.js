@@ -228,30 +228,71 @@ Return only the JSON object, no additional text.`;
             selector: '.card__menu',
             nameSelectors: ['h3', 'h2', '.card__menu-content h3', '.title'],
             locationSelectors: ['.card__menu-footer--location', '.location', '.address'],
-            cuisineSelectors: ['.card__menu-content--subtitle', '.cuisine', '.category']
+            cuisineSelectors: ['.card__menu-content--subtitle', '.cuisine', '.category'],
+            starSelectors: ['.distinction', '[class*="star"]', 'svg', '.card__menu-content--distinction']
           },
           {
             name: 'Restaurant Card Approach',
             selector: '.restaurant-card, .poi-card',
             nameSelectors: ['h3', 'h2', '.restaurant-name', '.poi-name'],
             locationSelectors: ['.location', '.address', '.poi-location'],
-            cuisineSelectors: ['.cuisine', '.category', '.poi-category']
+            cuisineSelectors: ['.cuisine', '.category', '.poi-category'],
+            starSelectors: ['.distinction', '[class*="star"]', 'svg']
           },
           {
             name: 'Generic Card Approach',
             selector: '.card, div[class*="card"]',
             nameSelectors: ['h1', 'h2', 'h3', '.title', '.name'],
             locationSelectors: ['.location', '.address', '.city', '[class*="location"]'],
-            cuisineSelectors: ['.cuisine', '.category', '.type', '[class*="cuisine"]']
+            cuisineSelectors: ['.cuisine', '.category', '.type', '[class*="cuisine"]'],
+            starSelectors: ['.distinction', '[class*="star"]', 'svg', '[class*="distinction"]']
           },
           {
             name: 'Link-based Approach',
             selector: 'a[href*="/restaurant/"], a[href*="/establishment/"]',
             nameSelectors: ['', 'h3', 'h2', '.title'], // First empty string means use the link text itself
             locationSelectors: ['.location', '.address'],
-            cuisineSelectors: ['.cuisine', '.category']
+            cuisineSelectors: ['.cuisine', '.category'],
+            starSelectors: ['.distinction', '[class*="star"]', 'svg']
           }
         ];
+
+        // Helper function to extract star count from element
+        const extractStarCount = (container) => {
+          // Method 1: Count star SVG icons
+          const starSvgs = container.querySelectorAll('svg[class*="star"], .icon-star, [class*="michelin-star"]');
+          if (starSvgs.length > 0 && starSvgs.length <= 3) {
+            return starSvgs.length;
+          }
+
+          // Method 2: Look for text patterns
+          const fullText = container.textContent || '';
+
+          // Check for "Three Stars", "Two Stars", "One Star" patterns
+          if (/three\s*(?:michelin\s*)?stars?/i.test(fullText)) return 3;
+          if (/two\s*(?:michelin\s*)?stars?/i.test(fullText)) return 2;
+          if (/one\s*(?:michelin\s*)?star/i.test(fullText)) return 1;
+
+          // Check for "3 Stars", "2 Stars", "1 Star" patterns
+          if (/3\s*(?:michelin\s*)?stars?/i.test(fullText)) return 3;
+          if (/2\s*(?:michelin\s*)?stars?/i.test(fullText)) return 2;
+          if (/1\s*(?:michelin\s*)?star/i.test(fullText)) return 1;
+
+          // Method 3: Check distinction class names
+          const distinctionEl = container.querySelector('[class*="distinction"]');
+          if (distinctionEl) {
+            const classes = distinctionEl.className || '';
+            if (classes.includes('3') || classes.includes('three')) return 3;
+            if (classes.includes('2') || classes.includes('two')) return 2;
+            if (classes.includes('1') || classes.includes('one')) return 1;
+          }
+
+          // Method 4: Count Michelin star characters (m symbol)
+          const mStars = (fullText.match(/\u2B50|\u2606|\u2605|⭐|★|☆/g) || []).length;
+          if (mStars > 0 && mStars <= 3) return mStars;
+
+          return null;
+        };
 
         const results = [];
 
@@ -310,9 +351,13 @@ Return only the JSON object, no additional text.`;
               url = container.href || container.getAttribute('href') || '';
             }
 
+            // Extract star count
+            const stars = extractStarCount(container);
+
             console.log(`     Name: "${name}"`);
             console.log(`     Location: "${location}"`);
             console.log(`     Cuisine: "${cuisine}"`);
+            console.log(`     Stars: ${stars}`);
             console.log(`     URL: "${url}"`);
             console.log(`     Full text: "${container.textContent?.substring(0, 200)}"`);
 
@@ -322,6 +367,7 @@ Return only the JSON object, no additional text.`;
                 name,
                 location,
                 cuisine,
+                stars,
                 url,
                 fullText: container.textContent?.substring(0, 200)
               });
@@ -355,6 +401,7 @@ Return only the JSON object, no additional text.`;
             city: parsedLocation.city,
             country: parsedLocation.country,
             cuisine: result.cuisine || 'Contemporary',
+            michelinStars: result.stars,
             rawLocation: result.location,
             url: result.url,
             approach: result.approach
