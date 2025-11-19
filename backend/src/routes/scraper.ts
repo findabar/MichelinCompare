@@ -4,6 +4,84 @@ import http from 'http';
 import { URL } from 'url';
 import { createError } from '../middleware/errorHandler';
 import adminAuth from '../middleware/adminAuth';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+interface DuplicateGroup {
+  name: string;
+  matchedOn: string[];
+  restaurants: {
+    id: string;
+    name: string;
+    city: string;
+    country: string;
+    cuisineType: string;
+    michelinStars: number;
+  }[];
+}
+
+// Function to find potential duplicate restaurants
+async function findDuplicateRestaurants(): Promise<DuplicateGroup[]> {
+  const restaurants = await prisma.restaurant.findMany({
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      country: true,
+      cuisineType: true,
+      michelinStars: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  // Group by normalized name (lowercase, trimmed)
+  const nameGroups = new Map<string, typeof restaurants>();
+
+  for (const restaurant of restaurants) {
+    const normalizedName = restaurant.name.toLowerCase().trim();
+    const group = nameGroups.get(normalizedName) || [];
+    group.push(restaurant);
+    nameGroups.set(normalizedName, group);
+  }
+
+  const duplicates: DuplicateGroup[] = [];
+
+  // Check each group with multiple restaurants
+  for (const [, group] of nameGroups) {
+    if (group.length < 2) continue;
+
+    // Check for additional matching fields
+    const matchedOn: string[] = [];
+
+    // Check if all share same city
+    const cities = new Set(group.map(r => r.city.toLowerCase().trim()));
+    if (cities.size === 1) matchedOn.push('city');
+
+    // Check if all share same country
+    const countries = new Set(group.map(r => r.country.toLowerCase().trim()));
+    if (countries.size === 1) matchedOn.push('country');
+
+    // Check if all share same cuisine type
+    const cuisines = new Set(group.map(r => r.cuisineType.toLowerCase().trim()));
+    if (cuisines.size === 1) matchedOn.push('cuisineType');
+
+    // Check if all share same star rating
+    const stars = new Set(group.map(r => r.michelinStars));
+    if (stars.size === 1) matchedOn.push('michelinStars');
+
+    // Only include if at least one additional field matches
+    if (matchedOn.length > 0) {
+      duplicates.push({
+        name: group[0].name,
+        matchedOn,
+        restaurants: group,
+      });
+    }
+  }
+
+  return duplicates;
+}
 
 const router = express.Router();
 
@@ -276,6 +354,29 @@ router.post('/test-restaurant', adminAuth, async (req, res, next) => {
     }
 
     next(createError(`Failed to test restaurant lookup: ${errorMessage}`, 500));
+  }
+});
+
+// GET /api/scraper/duplicates - Find potential duplicate restaurants in database
+router.get('/duplicates', async (_req, res, next) => {
+  try {
+    console.log('🔍 Checking database for potential duplicate restaurants...');
+
+    const duplicates = await findDuplicateRestaurants();
+
+    const totalDuplicates = duplicates.reduce((sum, group) => sum + group.restaurants.length, 0);
+
+    res.json({
+      message: `Found ${duplicates.length} potential duplicate groups (${totalDuplicates} restaurants)`,
+      duplicateGroups: duplicates.length,
+      totalRestaurants: totalDuplicates,
+      duplicates,
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to find duplicate restaurants:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    next(createError(`Failed to find duplicates: ${errorMessage}`, 500));
   }
 });
 
