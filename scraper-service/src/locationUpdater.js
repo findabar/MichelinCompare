@@ -773,21 +773,22 @@ Return only the JSON object, no additional text.`;
               console.log(`🔧 DEBUG: Will update address to "${mainMatch.streetAddress}"`);
             }
 
-            if (mainMatch.phone && mainMatch.phone !== 'null') {
+            // Always update these fields from Michelin if different and valid
+            if (mainMatch.phone && mainMatch.phone !== 'null' && mainMatch.phone !== restaurant.phone) {
               updateData.phone = mainMatch.phone;
-              changes.push(`phone: "${mainMatch.phone}"`);
+              changes.push(`phone: "${restaurant.phone || 'null'}" → "${mainMatch.phone}"`);
               console.log(`🔧 DEBUG: Will update phone to "${mainMatch.phone}"`);
             }
 
-            if (mainMatch.url && mainMatch.url !== 'null') {
+            if (mainMatch.url && mainMatch.url !== 'null' && mainMatch.url !== restaurant.website) {
               updateData.website = mainMatch.url;
-              changes.push(`website: "${mainMatch.url}"`);
+              changes.push(`website: "${restaurant.website || 'null'}" → "${mainMatch.url}"`);
               console.log(`🔧 DEBUG: Will update website to "${mainMatch.url}"`);
             }
 
-            if (mainMatch.michelinUrl && mainMatch.michelinUrl !== 'null') {
+            if (mainMatch.michelinUrl && mainMatch.michelinUrl !== 'null' && mainMatch.michelinUrl !== restaurant.michelinUrl) {
               updateData.michelinUrl = mainMatch.michelinUrl;
-              changes.push(`michelin URL: "${mainMatch.michelinUrl}"`);
+              changes.push(`michelin URL: "${restaurant.michelinUrl || 'null'}" → "${mainMatch.michelinUrl}"`);
               console.log(`🔧 DEBUG: Will update Michelin URL to "${mainMatch.michelinUrl}"`);
             }
 
@@ -797,10 +798,10 @@ Return only the JSON object, no additional text.`;
               console.log(`🔧 DEBUG: Will update stars to ${mainMatch.michelinStars}`);
             }
 
-            if (mainMatch.description && mainMatch.description !== 'null') {
+            if (mainMatch.description && mainMatch.description !== 'null' && mainMatch.description !== restaurant.description) {
               updateData.description = mainMatch.description;
-              changes.push(`description: "${mainMatch.description}"`);
-              console.log(`🔧 DEBUG: Will update description to "${mainMatch.description}"`);
+              changes.push(`description: "${restaurant.description ? restaurant.description.substring(0, 50) + '...' : 'null'}" → "${mainMatch.description.substring(0, 50)}..."`);
+              console.log(`🔧 DEBUG: Will update description`);
             }
 
             console.log(`🔧 DEBUG: Update data:`, updateData);
