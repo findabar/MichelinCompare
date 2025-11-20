@@ -267,11 +267,11 @@ Return only the JSON object, no additional text.`;
         ? restaurantName
         : `${restaurantName} restaurant`;
 
-      // Use global restaurants search endpoint with distinction filters for starred restaurants only
-      // Filter for 1, 2, and 3 Michelin stars using array notation
-      const searchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(searchName)}&distinction[]=m1-stars&distinction[]=m2-stars&distinction[]=m3-stars`;
+      // Use global restaurants search endpoint
+      // Note: Client-side filtering for starred restaurants is applied after scraping
+      const searchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(searchName)}`;
 
-      console.log(`🔍 Searching for: ${searchName} (stars only)`);
+      console.log(`🔍 Searching for: ${searchName}`);
       console.log(`🔧 Search URL: ${searchUrl}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
