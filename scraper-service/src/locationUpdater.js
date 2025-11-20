@@ -186,9 +186,50 @@ Return only the JSON object, no additional text.`;
       await page.goto(restaurantUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Get the page content for AI analysis
+      // First try to extract from dLayer data (most reliable for stars)
+      const dLayerData = await page.evaluate(() => {
+        const scripts = Array.from(document.querySelectorAll('script'));
+        let allScriptContent = '';
+
+        scripts.forEach(script => {
+          const content = script.textContent || '';
+          allScriptContent += content + '\n';
+        });
+
+        // Extract dLayer values using regex
+        const extractValue = (key) => {
+          let regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*'([^']*)'`);
+          let match = allScriptContent.match(regex);
+          if (match) return match[1];
+
+          regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*"([^"]*)"`);
+          match = allScriptContent.match(regex);
+          if (match) return match[1];
+
+          return null;
+        };
+
+        return {
+          distinction: extractValue('distinction'),
+          city: extractValue('city'),
+          restaurant_selection: extractValue('restaurant_selection'),
+          restaurant_name: extractValue('restaurant_name'),
+          cookingtype: extractValue('cookingtype')
+        };
+      });
+
+      // Parse star rating from distinction field (e.g., "2 star" -> 2)
+      let stars = null;
+      if (dLayerData && dLayerData.distinction) {
+        const match = dLayerData.distinction.match(/(\d+)\s*star/i);
+        if (match) {
+          stars = parseInt(match[1]);
+          console.log(`✅ Extracted ${stars} stars from dLayer data`);
+        }
+      }
+
+      // Get the page content for additional detail extraction
       const pageContent = await page.content();
-      console.log(`📝 Detail page content length: ${pageContent.length} characters`);
 
       // Strip HTML tags for clean analysis
       const stripHtmlTags = (html) => {
@@ -202,9 +243,14 @@ Return only the JSON object, no additional text.`;
       };
 
       const cleanContent = stripHtmlTags(pageContent);
-      console.log(`🔧 DEBUG: Stripped HTML tags (${pageContent.length} → ${cleanContent.length} characters)`);
 
-      // Use AI to extract detailed information
+      // Use AI to extract detailed contact information if available
+      let contactDetails = {
+        streetAddress: null,
+        phone: null,
+        url: null
+      };
+
       if (process.env.OPENAI_API_KEY) {
         const prompt = `You are analyzing a Michelin Guide restaurant detail page. Please extract the detailed contact information from the following text content.
 
@@ -233,49 +279,49 @@ Return only the JSON object, no additional text.`;
 
         try {
           const ai = getOpenAI();
-          if (!ai) {
-            console.log('⚠️  OpenAI client not available for detail extraction');
-            return null;
+          if (ai) {
+            const response = await ai.chat.completions.create({
+              model: "gpt-4o",
+              messages: [
+                {
+                  role: "system",
+                  content: "You are a helpful assistant that extracts contact information from restaurant pages. Always respond with valid JSON only."
+                },
+                {
+                  role: "user",
+                  content: prompt
+                }
+              ],
+              temperature: 0,
+              max_tokens: 500
+            });
+
+            const aiResponse = response.choices[0].message.content.trim();
+
+            // Clean up the response if it has markdown formatting
+            let cleanResponse = aiResponse;
+            if (aiResponse.startsWith('```json')) {
+              cleanResponse = aiResponse.replace(/```json\n?/, '').replace(/\n?```/, '');
+            } else if (aiResponse.startsWith('```')) {
+              cleanResponse = aiResponse.replace(/```\n?/, '').replace(/\n?```/, '');
+            }
+
+            // Parse the JSON response
+            contactDetails = JSON.parse(cleanResponse);
+            console.log(`🤖 AI extracted contact details`);
           }
-
-          const response = await ai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-              {
-                role: "system",
-                content: "You are a helpful assistant that extracts contact information from restaurant pages. Always respond with valid JSON only."
-              },
-              {
-                role: "user",
-                content: prompt
-              }
-            ],
-            temperature: 0,
-            max_tokens: 500
-          });
-
-          const aiResponse = response.choices[0].message.content.trim();
-          console.log(`🤖 Detail page AI extraction successful`);
-
-          // Clean up the response if it has markdown formatting
-          let cleanResponse = aiResponse;
-          if (aiResponse.startsWith('```json')) {
-            cleanResponse = aiResponse.replace(/```json\n?/, '').replace(/\n?```/, '');
-          } else if (aiResponse.startsWith('```')) {
-            cleanResponse = aiResponse.replace(/```\n?/, '').replace(/\n?```/, '');
-          }
-
-          // Parse the JSON response
-          const detailData = JSON.parse(cleanResponse);
-          return detailData;
-
         } catch (error) {
-          console.error(`❌ Detail page AI extraction failed:`, error.message);
-          return null;
+          console.log(`⚠️ AI detail extraction skipped or failed: ${error.message}`);
         }
       }
 
-      return null;
+      // Return combined data with stars from dLayer and contact from AI
+      return {
+        michelinStars: stars,
+        streetAddress: contactDetails.streetAddress,
+        phone: contactDetails.phone,
+        url: contactDetails.url
+      };
 
     } catch (error) {
       console.error(`❌ Error loading restaurant detail page:`, error.message);
@@ -337,70 +383,12 @@ Return only the JSON object, no additional text.`;
       const pageUrl = page.url();
       console.log(`🔧 DEBUG: Page loaded - Title: "${pageTitle}", URL: ${pageUrl}`);
 
-      // Get the page content for AI analysis
+      // Get the page content for later AI analysis if needed
       const pageContent = await page.content();
       console.log(`📝 Page content length: ${pageContent.length} characters`);
 
-      // Try AI extraction first if OpenAI API key is available
-      if (process.env.OPENAI_API_KEY) {
-        console.log(`🤖 Attempting AI extraction for: ${restaurantName}`);
-        const aiResult = await this.extractRestaurantDetailsWithAI(pageContent, restaurantName);
-
-        if (aiResult && aiResult.restaurants && aiResult.restaurants.length > 0) {
-          console.log(`✅ AI extraction successful! Found ${aiResult.restaurants.length} restaurant(s)`);
-
-          // Enhanced processing: get detailed info from individual restaurant pages
-          const processedRestaurants = [];
-
-          for (let i = 0; i < aiResult.restaurants.length; i++) {
-            const restaurant = aiResult.restaurants[i];
-            let processedRestaurant = {
-              name: restaurant.name,
-              city: restaurant.city || 'Unknown City',
-              country: restaurant.country || 'Unknown Country',
-              cuisine: restaurant.cuisine || 'Contemporary',
-              michelinStars: restaurant.michelinStars || 1,
-              description: restaurant.description || null,
-              streetAddress: restaurant.streetAddress || null,
-              phone: restaurant.phone || null,
-              url: restaurant.url || null, // Restaurant's own website
-              michelinUrl: restaurant.michelinUrl || null, // Michelin Guide page URL
-              isMainMatch: i === 0 // First match is used to update existing restaurant
-            };
-
-            // If we have a Michelin URL and no street address, try to get detailed info
-            if (restaurant.michelinUrl && (!restaurant.streetAddress || restaurant.streetAddress === 'null')) {
-              console.log(`🏠 Getting detailed address for: ${restaurant.name}`);
-              const detailsFromPage = await this.extractDetailsFromRestaurantPage(restaurant.michelinUrl);
-
-              if (detailsFromPage) {
-                // Update with more detailed information
-                processedRestaurant.streetAddress = detailsFromPage.streetAddress || processedRestaurant.streetAddress;
-                processedRestaurant.phone = detailsFromPage.phone || processedRestaurant.phone;
-                processedRestaurant.url = detailsFromPage.url || processedRestaurant.url;
-                console.log(`✅ Enhanced details for ${restaurant.name}: address="${detailsFromPage.streetAddress}"`);
-              }
-            }
-
-            processedRestaurants.push(processedRestaurant);
-          }
-
-          // Filter to only include restaurants with Michelin stars
-          const starredRestaurants = processedRestaurants.filter(r => r.michelinStars !== null && r.michelinStars > 0);
-          console.log(`🌟 Filtered to ${starredRestaurants.length} starred restaurants (removed ${processedRestaurants.length - starredRestaurants.length} without stars)`);
-
-          return {
-            restaurants: starredRestaurants,
-            totalFound: starredRestaurants.length,
-            method: 'AI+Details'
-          };
-        } else {
-          console.log(`⚠️  AI extraction failed or returned no results, falling back to manual parsing`);
-        }
-      }
-
-      // Fallback to manual HTML parsing if AI fails or API key not available
-      console.log(`🔧 Falling back to manual HTML parsing for: ${restaurantName}`);
+      // Try manual HTML parsing first (free and reliable)
+      console.log(`🔧 Starting manual HTML parsing for: ${restaurantName}`);
 
       // Look for restaurant cards in search results and extract all matching restaurants
       const allRestaurantMatches = await page.evaluate((searchName) => {
@@ -526,8 +514,8 @@ Return only the JSON object, no additional text.`;
 
       console.log(`✅ Found ${allRestaurantMatches.length} restaurant(s) for: ${restaurantName} (manual parsing)`);
 
-      // Process all matches and return the first one with additional matches for database insertion
-      const processedRestaurants = [];
+      // Process all matches and extract star data from individual pages
+      let processedRestaurants = [];
 
       for (let i = 0; i < allRestaurantMatches.length; i++) {
         const match = allRestaurantMatches[i];
@@ -536,20 +524,70 @@ Return only the JSON object, no additional text.`;
         // Parse location
         const parsedLocation = this.parseLocation(match.rawLocation);
 
-        const processedRestaurant = {
+        let processedRestaurant = {
           name: match.name,
           city: parsedLocation.city,
           country: parsedLocation.country,
           cuisine: match.cuisine || 'Contemporary',
-          michelinStars: 1, // Default for manual parsing
-          streetAddress: null, // Not available in manual parsing
-          phone: null, // Not available in manual parsing
-          url: null, // Restaurant website not available in manual parsing
+          michelinStars: null, // Will be extracted from detail page
+          streetAddress: null,
+          phone: null,
+          url: null,
           michelinUrl: match.michelinUrl,
-          isMainMatch: i === 0 // First match is used to update existing restaurant
+          isMainMatch: i === 0
         };
 
+        // Try to extract star data from the restaurant's detail page
+        if (match.michelinUrl) {
+          try {
+            console.log(`🌟 Extracting star data from: ${match.michelinUrl}`);
+            const detailsFromPage = await this.extractDetailsFromRestaurantPage(match.michelinUrl);
+
+            if (detailsFromPage && detailsFromPage.michelinStars) {
+              processedRestaurant.michelinStars = detailsFromPage.michelinStars;
+              processedRestaurant.streetAddress = detailsFromPage.streetAddress || null;
+              processedRestaurant.phone = detailsFromPage.phone || null;
+              processedRestaurant.url = detailsFromPage.url || null;
+              console.log(`✅ Extracted ${detailsFromPage.michelinStars} stars for ${match.name}`);
+            }
+          } catch (detailError) {
+            console.log(`⚠️ Could not extract details from page: ${detailError.message}`);
+          }
+        }
+
         processedRestaurants.push(processedRestaurant);
+      }
+
+      // Check if we successfully extracted star data
+      const hasStarData = processedRestaurants.some(r => r.michelinStars !== null && r.michelinStars > 0);
+
+      if (!hasStarData && process.env.OPENAI_API_KEY) {
+        // Use AI as fallback if manual parsing didn't get star data
+        console.log(`⚠️ Manual parsing didn't extract star data, trying AI enrichment...`);
+        const aiResult = await this.extractRestaurantDetailsWithAI(pageContent, restaurantName);
+
+        if (aiResult && aiResult.restaurants && aiResult.restaurants.length > 0) {
+          console.log(`✅ AI enrichment successful! Found ${aiResult.restaurants.length} restaurant(s) with star data`);
+
+          // Merge AI data with manual results
+          processedRestaurants = processedRestaurants.map((manualResult, index) => {
+            const aiMatch = aiResult.restaurants.find(ai =>
+              ai.name.toLowerCase() === manualResult.name.toLowerCase()
+            ) || aiResult.restaurants[index];
+
+            if (aiMatch) {
+              return {
+                ...manualResult,
+                michelinStars: aiMatch.michelinStars || manualResult.michelinStars,
+                streetAddress: aiMatch.streetAddress || manualResult.streetAddress,
+                phone: aiMatch.phone || manualResult.phone,
+                url: aiMatch.url || manualResult.url,
+                description: aiMatch.description || null
+              };
+            }
+            return manualResult;
+          });
+        }
       }
 
       // Filter to only include restaurants with Michelin stars
@@ -559,7 +597,7 @@ Return only the JSON object, no additional text.`;
       return {
         restaurants: starredRestaurants,
         totalFound: starredRestaurants.length,
-        method: 'manual'
+        method: hasStarData ? 'manual+details' : 'manual+AI'
       };
 
     } catch (error) {
