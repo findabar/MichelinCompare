@@ -71,8 +71,13 @@ Return only the JSON object, no additional text.`;
         max_tokens: 2000
       });
 
-      const aiResponse = response.choices[0].message.content.trim();
+      let aiResponse = response.choices[0].message.content.trim();
       this.log(`🤖 OpenAI Response:`, aiResponse);
+
+      // Remove markdown code block markers if present
+      if (aiResponse.startsWith('```')) {
+        aiResponse = aiResponse.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      }
 
       // Parse the JSON response
       const restaurantData = JSON.parse(aiResponse);
