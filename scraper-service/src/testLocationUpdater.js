@@ -7,10 +7,21 @@ const openai = new OpenAI({
 });
 
 class TestLocationUpdater extends LocationUpdater {
+  constructor() {
+    super();
+    // Enable debug logging only if DEBUG env var is set
+    this.DEBUG = process.env.DEBUG === 'true';
+  }
+
+  log(...args) {
+    if (this.DEBUG) {
+      console.log(...args);
+    }
+  }
 
   async extractRestaurantDetailsWithAI(pageContent, restaurantName) {
     try {
-      console.log(`🤖 Using OpenAI to extract restaurant details...`);
+      this.log(`🤖 Using OpenAI to extract restaurant details...`);
 
       const prompt = `You are analyzing a Michelin Guide restaurant search results page. Please extract restaurant information from the following HTML content.
 
@@ -61,7 +72,7 @@ Return only the JSON object, no additional text.`;
       });
 
       const aiResponse = response.choices[0].message.content.trim();
-      console.log(`🤖 OpenAI Response:`, aiResponse);
+      this.log(`🤖 OpenAI Response:`, aiResponse);
 
       // Parse the JSON response
       const restaurantData = JSON.parse(aiResponse);
@@ -76,7 +87,7 @@ Return only the JSON object, no additional text.`;
 
   async extractRestaurantDetailsFromPage(url) {
     try {
-      console.log(`🔍 Extracting details from: ${url}`);
+      this.log(`🔍 Extracting details from: ${url}`);
 
       const page = await this.browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
@@ -114,7 +125,7 @@ Return only the JSON object, no additional text.`;
       await page.close();
 
       if (dLayerData) {
-        console.log(`📊 dLayer data:`, dLayerData);
+        this.log(`📊 dLayer data:`, dLayerData);
 
         // Parse star rating from distinction field (e.g., "2 star" -> 2)
         let stars = null;
@@ -124,6 +135,8 @@ Return only the JSON object, no additional text.`;
             stars = parseInt(match[1]);
           }
         }
+
+        console.log(`✅ Extracted from dLayer: ${dLayerData.restaurant_name} - ${stars} stars, ${dLayerData.city}, ${dLayerData.restaurant_selection}`);
 
         return {
           name: dLayerData.restaurant_name,
@@ -193,7 +206,7 @@ Return only the JSON object, no additional text.`;
       // Use GB restaurants search endpoint
       const searchUrl = `https://guide.michelin.com/gb/en/restaurants?q=${encodeURIComponent(restaurantName)}`;
 
-      console.log(`🔍 Testing URL: ${searchUrl}`);
+      console.log(`🔍 Searching for: ${restaurantName}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -201,7 +214,7 @@ Return only the JSON object, no additional text.`;
       // Take a screenshot for debugging
       const screenshotPath = `/tmp/michelin-test-${Date.now()}.png`;
       await page.screenshot({ path: screenshotPath, fullPage: true });
-      console.log(`📸 Screenshot saved to: ${screenshotPath}`);
+      this.log(`📸 Screenshot saved to: ${screenshotPath}`);
 
       // Get page info
       const pageInfo = await page.evaluate(() => {
@@ -213,7 +226,7 @@ Return only the JSON object, no additional text.`;
         };
       });
 
-      console.log(`📄 Page Info:`, pageInfo);
+      this.log(`📄 Page Info:`, pageInfo);
 
       // Test all possible selectors extensively
       const selectorAnalysis = await page.evaluate(() => {
@@ -270,24 +283,23 @@ Return only the JSON object, no additional text.`;
         return analysis;
       });
 
-      console.log(`🔍 Selector Analysis:`);
+      this.log(`🔍 Selector Analysis:`);
       Object.entries(selectorAnalysis).forEach(([selector, data]) => {
         if (data.count > 0) {
-          console.log(`  ✅ ${selector}: ${data.count} elements`);
+          this.log(`  ✅ ${selector}: ${data.count} elements`);
           if (data.sample) {
             data.sample.forEach((sample, i) => {
-              console.log(`    ${i + 1}. ${sample.tag}.${sample.className} - "${sample.text}"`);
-              if (sample.href) console.log(`       URL: ${sample.href}`);
+              this.log(`    ${i + 1}. ${sample.tag}.${sample.className} - "${sample.text}"`);
+              if (sample.href) this.log(`       URL: ${sample.href}`);
             });
           }
         } else {
-          console.log(`  ❌ ${selector}: 0 elements`);
+          this.log(`  ❌ ${selector}: 0 elements`);
         }
       });
 
       // Try the restaurant extraction with detailed debugging
-      const restaurantData = await page.evaluate((searchName) => {
-        console.log(`🔬 Starting detailed extraction for: ${searchName}`);
+      const restaurantData = await page.evaluate(() => {
 
         // Try multiple approaches to find restaurant data
         const approaches = [
@@ -365,15 +377,10 @@ Return only the JSON object, no additional text.`;
         const results = [];
 
         approaches.forEach(approach => {
-          console.log(`🔬 Trying ${approach.name}...`);
-
           const containers = document.querySelectorAll(approach.selector);
-          console.log(`   Found ${containers.length} containers with selector: ${approach.selector}`);
 
           containers.forEach((container, i) => {
             if (i >= 5) return; // Limit to first 5 for debugging
-
-            console.log(`   🔍 Analyzing container ${i + 1}:`);
 
             // Extract name
             let name = '';
@@ -422,13 +429,6 @@ Return only the JSON object, no additional text.`;
             // Extract star count
             const stars = extractStarCount(container);
 
-            console.log(`     Name: "${name}"`);
-            console.log(`     Location: "${location}"`);
-            console.log(`     Cuisine: "${cuisine}"`);
-            console.log(`     Stars: ${stars}`);
-            console.log(`     URL: "${url}"`);
-            console.log(`     Full text: "${container.textContent?.substring(0, 200)}"`);
-
             if (name) {
               results.push({
                 approach: approach.name,
@@ -442,23 +442,21 @@ Return only the JSON object, no additional text.`;
             }
           });
         });
-
-        console.log(`🔬 Total results found: ${results.length}`);
         return results;
 
-      }, restaurantName);
+      });
 
-      console.log(`\n🔬 Detailed Extraction Results:`);
-      console.log('='.repeat(50));
+      this.log(`\n🔬 Detailed Extraction Results:`);
+      this.log('='.repeat(50));
 
       if (restaurantData && restaurantData.length > 0) {
         restaurantData.forEach((result, i) => {
-          console.log(`\n${i + 1}. ${result.approach}:`);
-          console.log(`   Name: "${result.name}"`);
-          console.log(`   Location: "${result.location}"`);
-          console.log(`   Cuisine: "${result.cuisine}"`);
-          console.log(`   URL: "${result.url}"`);
-          console.log(`   Sample text: "${result.fullText}"`);
+          this.log(`\n${i + 1}. ${result.approach}:`);
+          this.log(`   Name: "${result.name}"`);
+          this.log(`   Location: "${result.location}"`);
+          this.log(`   Cuisine: "${result.cuisine}"`);
+          this.log(`   URL: "${result.url}"`);
+          this.log(`   Sample text: "${result.fullText}"`);
         });
 
         // Process the results using our location parser
@@ -477,7 +475,7 @@ Return only the JSON object, no additional text.`;
         });
 
         // Try to get details from restaurant detail page using dLayer data
-        console.log(`\n🔍 Attempting to extract dLayer data from restaurant pages...`);
+        this.log(`\n🔍 Attempting to extract dLayer data from restaurant pages...`);
         let enrichedResults = [...processedResults];
 
         // Find the first result with a valid URL that matches the search query
@@ -490,7 +488,7 @@ Return only the JSON object, no additional text.`;
             const dLayerDetails = await this.extractRestaurantDetailsFromPage(firstMatch.url);
 
             if (dLayerDetails && dLayerDetails.michelinStars !== null) {
-              console.log(`✅ Successfully extracted dLayer data with ${dLayerDetails.michelinStars} stars`);
+              this.log(`✅ Successfully extracted dLayer data with ${dLayerDetails.michelinStars} stars`);
 
               // Update the matching result with dLayer data
               enrichedResults = enrichedResults.map(r => {
@@ -527,14 +525,14 @@ Return only the JSON object, no additional text.`;
         // If dLayer extraction didn't work and no stars were extracted, try using AI
         const hasStars = enrichedResults.some(r => r.michelinStars !== null);
         if (!hasStars) {
-          console.log(`⚠️ No stars detected in extraction, trying AI method...`);
+          this.log(`⚠️ No stars detected in extraction, trying AI method...`);
 
           try {
             const pageContent = await page.content();
             const aiData = await this.extractRestaurantDetailsWithAI(pageContent, restaurantName);
 
             if (aiData?.restaurants?.length > 0) {
-              console.log(`🤖 AI extracted ${aiData.restaurants.length} restaurants with star data`);
+              this.log(`🤖 AI extracted ${aiData.restaurants.length} restaurants with star data`);
 
               // Merge AI data with enriched results, preferring AI data for missing fields
               const merged = enrichedResults.map((result, index) => {
@@ -581,7 +579,7 @@ Return only the JSON object, no additional text.`;
           }
         };
       } else {
-        console.log(`❌ No restaurant data extracted, trying AI method...`);
+        this.log(`❌ No restaurant data extracted, trying AI method...`);
 
         try {
           const pageContent = await page.content();
