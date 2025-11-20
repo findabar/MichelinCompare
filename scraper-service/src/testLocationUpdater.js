@@ -278,7 +278,32 @@ Return only the JSON object, no additional text.`;
 
       if (noResultsDetected) {
         console.log('⚠️ No restaurants found matching the search query');
-        return null;
+
+        // If the restaurant name doesn't already end with "restaurant", try adding it as a fallback
+        if (!restaurantName.toLowerCase().includes('restaurant')) {
+          console.log('🔄 Retrying with "restaurant" appended to the name...');
+          // Navigate to new search URL with "restaurant" appended
+          const retrySearchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(`${restaurantName} restaurant`)}`;
+          await page.goto(retrySearchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Check again for "no results" message
+          const retryNoResults = await page.evaluate(() => {
+            const bodyText = document.body.innerText || '';
+            return bodyText.includes('Unfortunately there are no selected restaurants in the area you\'ve searched for.');
+          });
+
+          if (retryNoResults) {
+            console.log('⚠️ Still no results found after retry');
+            return null;
+          }
+
+          // If we found results, update the restaurantName variable for the rest of the function
+          restaurantName = `${restaurantName} restaurant`;
+          console.log('✅ Found results with retry!');
+        } else {
+          return null;
+        }
       }
 
       // Take a screenshot for debugging
