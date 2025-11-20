@@ -262,13 +262,24 @@ Return only the JSON object, no additional text.`;
     });
 
     try {
-      // Use GB restaurants search endpoint
-      const searchUrl = `https://guide.michelin.com/gb/en/restaurants?q=${encodeURIComponent(restaurantName)}`;
+      // Use global restaurants search endpoint (not region-specific)
+      const searchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(restaurantName)}`;
 
       console.log(`🔍 Searching for: ${restaurantName}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Check for "no results" message
+      const noResultsDetected = await page.evaluate(() => {
+        const bodyText = document.body.innerText || '';
+        return bodyText.includes('Unfortunately there are no selected restaurants in the area you\'ve searched for.');
+      });
+
+      if (noResultsDetected) {
+        console.log('⚠️ No restaurants found matching the search query');
+        return null;
+      }
 
       // Take a screenshot for debugging
       const screenshotPath = `/tmp/michelin-test-${Date.now()}.png`;
