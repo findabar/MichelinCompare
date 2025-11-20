@@ -107,8 +107,8 @@ Return only the JSON object, no additional text.`;
         for (const script of scripts) {
           const content = script.textContent || '';
           if (content.includes('dLayer')) {
-            // Get preview of script content for debugging
-            const preview = content.substring(0, 500);
+            // Get preview of script content for debugging (increased to 5000 chars)
+            const preview = content.substring(0, 5000);
 
             // Extract dLayer values using regex - try both single and double quotes
             const extractValue = (key) => {
