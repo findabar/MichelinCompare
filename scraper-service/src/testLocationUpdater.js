@@ -107,11 +107,29 @@ Return only the JSON object, no additional text.`;
         for (const script of scripts) {
           const content = script.textContent || '';
           if (content.includes('dLayer')) {
-            // Extract dLayer values using regex
+            // Extract dLayer values using regex - try both single and double quotes
             const extractValue = (key) => {
-              const regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*'([^']*)'`);
-              const match = content.match(regex);
-              return match ? match[1] : null;
+              // Try single quotes first: dLayer['key'] = 'value'
+              let regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*'([^']*)'`);
+              let match = content.match(regex);
+              if (match) return match[1];
+
+              // Try double quotes: dLayer["key"] = "value"
+              regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*"([^"]*)"`);
+              match = content.match(regex);
+              if (match) return match[1];
+
+              // Try mixed: dLayer['key'] = "value"
+              regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*"([^"]*)"`);
+              match = content.match(regex);
+              if (match) return match[1];
+
+              // Try mixed: dLayer["key"] = 'value'
+              regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*'([^']*)'`);
+              match = content.match(regex);
+              if (match) return match[1];
+
+              return null;
             };
 
             return {
@@ -141,7 +159,12 @@ Return only the JSON object, no additional text.`;
           }
         }
 
-        console.log(`✅ Extracted from dLayer: ${dLayerData.restaurant_name} - ${stars} stars, ${dLayerData.city}, ${dLayerData.restaurant_selection}`);
+        // Only log success if we actually extracted meaningful data
+        if (stars !== null && dLayerData.restaurant_name && dLayerData.city) {
+          console.log(`✅ Extracted from dLayer: ${dLayerData.restaurant_name} - ${stars} stars, ${dLayerData.city}, ${dLayerData.restaurant_selection}`);
+        } else {
+          console.log(`⚠️ dLayer found but values are null - may need to check page format`);
+        }
 
         return {
           name: dLayerData.restaurant_name,
@@ -152,6 +175,7 @@ Return only the JSON object, no additional text.`;
         };
       }
 
+      console.log(`⚠️ No dLayer data found on page: ${url}`);
       return null;
 
     } catch (error) {
