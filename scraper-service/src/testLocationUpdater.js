@@ -74,6 +74,74 @@ Return only the JSON object, no additional text.`;
     }
   }
 
+  async extractRestaurantDetailsFromPage(url) {
+    try {
+      console.log(`🔍 Extracting details from: ${url}`);
+
+      const page = await this.browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Extract dLayer data from the page
+      const dLayerData = await page.evaluate(() => {
+        // Look for dLayer in the page content
+        const scripts = Array.from(document.querySelectorAll('script'));
+        for (const script of scripts) {
+          const content = script.textContent || '';
+          if (content.includes('dLayer')) {
+            // Extract dLayer values using regex
+            const extractValue = (key) => {
+              const regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*'([^']*)'`);
+              const match = content.match(regex);
+              return match ? match[1] : null;
+            };
+
+            return {
+              distinction: extractValue('distinction'),
+              city: extractValue('city'),
+              region: extractValue('region'),
+              restaurant_selection: extractValue('restaurant_selection'),
+              restaurant_name: extractValue('restaurant_name'),
+              cookingtype: extractValue('cookingtype'),
+            };
+          }
+        }
+        return null;
+      });
+
+      await page.close();
+
+      if (dLayerData) {
+        console.log(`📊 dLayer data:`, dLayerData);
+
+        // Parse star rating from distinction field (e.g., "2 star" -> 2)
+        let stars = null;
+        if (dLayerData.distinction) {
+          const match = dLayerData.distinction.match(/(\d+)\s*star/i);
+          if (match) {
+            stars = parseInt(match[1]);
+          }
+        }
+
+        return {
+          name: dLayerData.restaurant_name,
+          city: dLayerData.city,
+          country: dLayerData.restaurant_selection,
+          michelinStars: stars,
+          url: url
+        };
+      }
+
+      return null;
+
+    } catch (error) {
+      console.error(`❌ Failed to extract details from ${url}:`, error.message);
+      return null;
+    }
+  }
+
   async testSingleRestaurant(restaurantName) {
     console.log(`🧪 Testing location update for: "${restaurantName}"`);
     console.log('='.repeat(80));
@@ -408,8 +476,56 @@ Return only the JSON object, no additional text.`;
           };
         });
 
-        // If no stars were extracted, try using AI to get more complete data
-        const hasStars = processedResults.some(r => r.michelinStars !== null);
+        // Try to get details from restaurant detail page using dLayer data
+        console.log(`\n🔍 Attempting to extract dLayer data from restaurant pages...`);
+        let enrichedResults = [...processedResults];
+
+        // Find the first result with a valid URL that matches the search query
+        const firstMatch = processedResults.find(r =>
+          r.url && r.name.toLowerCase().includes(restaurantName.toLowerCase())
+        ) || processedResults.find(r => r.url);
+
+        if (firstMatch && firstMatch.url) {
+          try {
+            const dLayerDetails = await this.extractRestaurantDetailsFromPage(firstMatch.url);
+
+            if (dLayerDetails && dLayerDetails.michelinStars !== null) {
+              console.log(`✅ Successfully extracted dLayer data with ${dLayerDetails.michelinStars} stars`);
+
+              // Update the matching result with dLayer data
+              enrichedResults = enrichedResults.map(r => {
+                if (r.url === firstMatch.url) {
+                  return {
+                    ...r,
+                    city: dLayerDetails.city || r.city,
+                    country: dLayerDetails.country || r.country,
+                    michelinStars: dLayerDetails.michelinStars,
+                    approach: 'dLayer Extraction'
+                  };
+                }
+                return r;
+              });
+
+              // Return early with enriched data
+              return {
+                restaurants: enrichedResults,
+                totalFound: enrichedResults.length,
+                debug: {
+                  pageInfo,
+                  selectorAnalysis,
+                  extractionDetails: restaurantData,
+                  dLayerExtraction: dLayerDetails
+                }
+              };
+            }
+          } catch (dLayerError) {
+            console.error(`❌ dLayer extraction failed:`, dLayerError.message);
+            // Continue to AI fallback
+          }
+        }
+
+        // If dLayer extraction didn't work and no stars were extracted, try using AI
+        const hasStars = enrichedResults.some(r => r.michelinStars !== null);
         if (!hasStars) {
           console.log(`⚠️ No stars detected in extraction, trying AI method...`);
 
@@ -420,8 +536,8 @@ Return only the JSON object, no additional text.`;
             if (aiData?.restaurants?.length > 0) {
               console.log(`🤖 AI extracted ${aiData.restaurants.length} restaurants with star data`);
 
-              // Merge AI data with processed results, preferring AI data for missing fields
-              const merged = processedResults.map((result, index) => {
+              // Merge AI data with enriched results, preferring AI data for missing fields
+              const merged = enrichedResults.map((result, index) => {
                 const aiMatch = aiData.restaurants.find(ai =>
                   ai.name.toLowerCase() === result.name.toLowerCase()
                 ) || aiData.restaurants[index];
@@ -456,8 +572,8 @@ Return only the JSON object, no additional text.`;
         }
 
         return {
-          restaurants: processedResults,
-          totalFound: processedResults.length,
+          restaurants: enrichedResults,
+          totalFound: enrichedResults.length,
           debug: {
             pageInfo,
             selectorAnalysis,
