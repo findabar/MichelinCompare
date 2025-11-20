@@ -107,6 +107,10 @@ Return only the JSON object, no additional text.`;
         for (const script of scripts) {
           const content = script.textContent || '';
           if (content.includes('dLayer')) {
+            // Log the actual script content for debugging (first 500 chars)
+            const preview = content.substring(0, 500);
+            console.log('🔍 Found dLayer script preview:', preview);
+
             // Extract dLayer values using regex - try both single and double quotes
             const extractValue = (key) => {
               // Try single quotes first: dLayer['key'] = 'value'
@@ -132,14 +136,19 @@ Return only the JSON object, no additional text.`;
               return null;
             };
 
-            return {
+            const result = {
               distinction: extractValue('distinction'),
               city: extractValue('city'),
               region: extractValue('region'),
               restaurant_selection: extractValue('restaurant_selection'),
               restaurant_name: extractValue('restaurant_name'),
               cookingtype: extractValue('cookingtype'),
+              scriptPreview: preview, // Include preview in result for debugging
             };
+
+            console.log('🔍 Extracted values:', result);
+
+            return result;
           }
         }
         return null;
