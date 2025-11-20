@@ -408,6 +408,53 @@ Return only the JSON object, no additional text.`;
           };
         });
 
+        // If no stars were extracted, try using AI to get more complete data
+        const hasStars = processedResults.some(r => r.michelinStars !== null);
+        if (!hasStars) {
+          console.log(`⚠️ No stars detected in extraction, trying AI method...`);
+
+          try {
+            const pageContent = await page.content();
+            const aiData = await this.extractRestaurantDetailsWithAI(pageContent, restaurantName);
+
+            if (aiData?.restaurants?.length > 0) {
+              console.log(`🤖 AI extracted ${aiData.restaurants.length} restaurants with star data`);
+
+              // Merge AI data with processed results, preferring AI data for missing fields
+              const merged = processedResults.map((result, index) => {
+                const aiMatch = aiData.restaurants.find(ai =>
+                  ai.name.toLowerCase() === result.name.toLowerCase()
+                ) || aiData.restaurants[index];
+
+                if (aiMatch) {
+                  return {
+                    ...result,
+                    city: result.city || aiMatch.city,
+                    country: result.country !== 'Unknown Country' ? result.country : aiMatch.country,
+                    cuisine: result.cuisine || aiMatch.cuisine,
+                    michelinStars: aiMatch.michelinStars || result.michelinStars
+                  };
+                }
+                return result;
+              });
+
+              return {
+                restaurants: merged,
+                totalFound: merged.length,
+                debug: {
+                  pageInfo,
+                  selectorAnalysis,
+                  extractionDetails: restaurantData,
+                  aiExtraction: aiData
+                }
+              };
+            }
+          } catch (aiError) {
+            console.error(`❌ AI extraction failed:`, aiError.message);
+            // Continue with original results even if AI fails
+          }
+        }
+
         return {
           restaurants: processedResults,
           totalFound: processedResults.length,
@@ -418,7 +465,39 @@ Return only the JSON object, no additional text.`;
           }
         };
       } else {
-        console.log(`❌ No restaurant data extracted`);
+        console.log(`❌ No restaurant data extracted, trying AI method...`);
+
+        try {
+          const pageContent = await page.content();
+          const aiData = await this.extractRestaurantDetailsWithAI(pageContent, restaurantName);
+
+          if (aiData?.restaurants?.length > 0) {
+            const processedAI = aiData.restaurants.map(r => ({
+              name: r.name,
+              city: r.city,
+              country: r.country,
+              cuisine: r.cuisine || 'Contemporary',
+              michelinStars: r.michelinStars,
+              rawLocation: `${r.city}, ${r.country}`,
+              url: r.url,
+              approach: 'AI Extraction'
+            }));
+
+            return {
+              restaurants: processedAI,
+              totalFound: processedAI.length,
+              debug: {
+                pageInfo,
+                selectorAnalysis,
+                extractionDetails: [],
+                aiExtraction: aiData
+              }
+            };
+          }
+        } catch (aiError) {
+          console.error(`❌ AI extraction failed:`, aiError.message);
+        }
+
         return {
           restaurants: [],
           totalFound: 0,
