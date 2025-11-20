@@ -262,10 +262,17 @@ Return only the JSON object, no additional text.`;
     });
 
     try {
-      // Use global restaurants search endpoint (not region-specific)
-      const searchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(restaurantName)}`;
+      // Always append "restaurant" to the search name
+      const searchName = restaurantName.toLowerCase().includes('restaurant')
+        ? restaurantName
+        : `${restaurantName} restaurant`;
 
-      console.log(`🔍 Searching for: ${restaurantName}`);
+      // Use global restaurants search endpoint with distinction filters for starred restaurants only
+      // Filter for 1, 2, and 3 Michelin stars using array notation
+      const searchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(searchName)}&distinction[]=m1-stars&distinction[]=m2-stars&distinction[]=m3-stars`;
+
+      console.log(`🔍 Searching for: ${searchName} (stars only)`);
+      console.log(`🔧 Search URL: ${searchUrl}`);
 
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -278,33 +285,11 @@ Return only the JSON object, no additional text.`;
 
       if (noResultsDetected) {
         console.log('⚠️ No restaurants found matching the search query');
-
-        // If the restaurant name doesn't already end with "restaurant", try adding it as a fallback
-        if (!restaurantName.toLowerCase().includes('restaurant')) {
-          console.log('🔄 Retrying with "restaurant" appended to the name...');
-          // Navigate to new search URL with "restaurant" appended
-          const retrySearchUrl = `https://guide.michelin.com/en/restaurants?q=${encodeURIComponent(`${restaurantName} restaurant`)}`;
-          await page.goto(retrySearchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-          await new Promise(resolve => setTimeout(resolve, 3000));
-
-          // Check again for "no results" message
-          const retryNoResults = await page.evaluate(() => {
-            const bodyText = document.body.innerText || '';
-            return bodyText.includes('Unfortunately there are no selected restaurants in the area you\'ve searched for.');
-          });
-
-          if (retryNoResults) {
-            console.log('⚠️ Still no results found after retry');
-            return null;
-          }
-
-          // If we found results, update the restaurantName variable for the rest of the function
-          restaurantName = `${restaurantName} restaurant`;
-          console.log('✅ Found results with retry!');
-        } else {
-          return null;
-        }
+        return null;
       }
+
+      // Update restaurantName for the rest of the function
+      restaurantName = searchName;
 
       // Take a screenshot for debugging
       const screenshotPath = `/tmp/michelin-test-${Date.now()}.png`;
@@ -599,10 +584,14 @@ Return only the JSON object, no additional text.`;
                 return r;
               });
 
+              // Filter to only include restaurants with Michelin stars
+              const starredRestaurants = enrichedResults.filter(r => r.michelinStars !== null && r.michelinStars > 0);
+              console.log(`🌟 Filtered to ${starredRestaurants.length} starred restaurants (removed ${enrichedResults.length - starredRestaurants.length} without stars)`);
+
               // Return early with enriched data
               return {
-                restaurants: enrichedResults,
-                totalFound: enrichedResults.length,
+                restaurants: starredRestaurants,
+                totalFound: starredRestaurants.length,
                 debug: {
                   pageInfo,
                   selectorAnalysis,
@@ -647,9 +636,13 @@ Return only the JSON object, no additional text.`;
                 return result;
               });
 
+              // Filter to only include restaurants with Michelin stars
+              const starredMerged = merged.filter(r => r.michelinStars !== null && r.michelinStars > 0);
+              console.log(`🌟 Filtered to ${starredMerged.length} starred restaurants (removed ${merged.length - starredMerged.length} without stars)`);
+
               return {
-                restaurants: merged,
-                totalFound: merged.length,
+                restaurants: starredMerged,
+                totalFound: starredMerged.length,
                 debug: {
                   pageInfo,
                   selectorAnalysis,
@@ -664,9 +657,13 @@ Return only the JSON object, no additional text.`;
           }
         }
 
+        // Filter to only include restaurants with Michelin stars
+        const starredResults = enrichedResults.filter(r => r.michelinStars !== null && r.michelinStars > 0);
+        console.log(`🌟 Filtered to ${starredResults.length} starred restaurants (removed ${enrichedResults.length - starredResults.length} without stars)`);
+
         return {
-          restaurants: enrichedResults,
-          totalFound: enrichedResults.length,
+          restaurants: starredResults,
+          totalFound: starredResults.length,
           debug: {
             pageInfo,
             selectorAnalysis,
