@@ -1,10 +1,16 @@
 const { LocationUpdater } = require('./locationUpdater');
 const OpenAI = require('openai');
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY // Make sure to set this environment variable
-});
+// Initialize OpenAI client (lazy-loaded only if API key is available)
+let openai = null;
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+  }
+  return openai;
+}
 
 class TestLocationUpdater extends LocationUpdater {
   constructor() {
@@ -21,6 +27,12 @@ class TestLocationUpdater extends LocationUpdater {
 
   async extractRestaurantDetailsWithAI(pageContent, restaurantName) {
     try {
+      const ai = getOpenAI();
+      if (!ai) {
+        this.log(`⚠️  OpenAI API key not available, skipping AI extraction`);
+        return { restaurants: [] };
+      }
+
       this.log(`🤖 Using OpenAI to extract restaurant details...`);
 
       const prompt = `You are analyzing a Michelin Guide restaurant search results page. Please extract restaurant information from the following HTML content.
@@ -55,7 +67,7 @@ Rules:
 
 Return only the JSON object, no additional text.`;
 
-      const response = await openai.chat.completions.create({
+      const response = await ai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -102,51 +114,53 @@ Return only the JSON object, no additional text.`;
 
       // Extract dLayer data from the page
       const dLayerData = await page.evaluate(() => {
-        // Look for dLayer in the page content
+        // Combine ALL scripts to search for dLayer values
         const scripts = Array.from(document.querySelectorAll('script'));
-        for (const script of scripts) {
+        let allScriptContent = '';
+        let dLayerScriptPreview = '';
+
+        scripts.forEach(script => {
           const content = script.textContent || '';
-          if (content.includes('dLayer')) {
-            // Get preview of script content for debugging (increased to 5000 chars)
-            const preview = content.substring(0, 5000);
-
-            // Extract dLayer values using regex - try both single and double quotes
-            const extractValue = (key) => {
-              // Try single quotes first: dLayer['key'] = 'value'
-              let regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*'([^']*)'`);
-              let match = content.match(regex);
-              if (match) return match[1];
-
-              // Try double quotes: dLayer["key"] = "value"
-              regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*"([^"]*)"`);
-              match = content.match(regex);
-              if (match) return match[1];
-
-              // Try mixed: dLayer['key'] = "value"
-              regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*"([^"]*)"`);
-              match = content.match(regex);
-              if (match) return match[1];
-
-              // Try mixed: dLayer["key"] = 'value'
-              regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*'([^']*)'`);
-              match = content.match(regex);
-              if (match) return match[1];
-
-              return null;
-            };
-
-            return {
-              distinction: extractValue('distinction'),
-              city: extractValue('city'),
-              region: extractValue('region'),
-              restaurant_selection: extractValue('restaurant_selection'),
-              restaurant_name: extractValue('restaurant_name'),
-              cookingtype: extractValue('cookingtype'),
-              scriptPreview: preview, // Include preview for debugging
-            };
+          allScriptContent += content + '\n';
+          if (content.includes('dLayer') && dLayerScriptPreview.length < 5000) {
+            dLayerScriptPreview += content.substring(0, 5000 - dLayerScriptPreview.length);
           }
-        }
-        return null;
+        });
+
+        // Extract dLayer values using regex across ALL scripts
+        const extractValue = (key) => {
+          // Try single quotes first: dLayer['key'] = 'value'
+          let regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*'([^']*)'`);
+          let match = allScriptContent.match(regex);
+          if (match) return match[1];
+
+          // Try double quotes: dLayer["key"] = "value"
+          regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*"([^"]*)"`);
+          match = allScriptContent.match(regex);
+          if (match) return match[1];
+
+          // Try mixed: dLayer['key'] = "value"
+          regex = new RegExp(`dLayer\\['${key}'\\]\\s*=\\s*"([^"]*)"`);
+          match = allScriptContent.match(regex);
+          if (match) return match[1];
+
+          // Try mixed: dLayer["key"] = 'value'
+          regex = new RegExp(`dLayer\\["${key}"\\]\\s*=\\s*'([^']*)'`);
+          match = allScriptContent.match(regex);
+          if (match) return match[1];
+
+          return null;
+        };
+
+        return {
+          distinction: extractValue('distinction'),
+          city: extractValue('city'),
+          region: extractValue('region'),
+          restaurant_selection: extractValue('restaurant_selection'),
+          restaurant_name: extractValue('restaurant_name'),
+          cookingtype: extractValue('cookingtype'),
+          scriptPreview: dLayerScriptPreview || 'No dLayer scripts found', // Include preview for debugging
+        };
       });
 
       // Log the actual script content (in Node.js context, not browser context)

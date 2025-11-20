@@ -4,10 +4,16 @@ const OpenAI = require('openai');
 
 const prisma = new PrismaClient();
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI client (lazy-loaded only if API key is available)
+let openai = null;
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+  }
+  return openai;
+}
 
 class LocationUpdater {
   constructor() {
@@ -113,7 +119,13 @@ Rules:
 
 Return only the JSON object, no additional text.`;
 
-      const response = await openai.chat.completions.create({
+      const ai = getOpenAI();
+      if (!ai) {
+        console.log('⚠️  OpenAI client not available');
+        return null;
+      }
+
+      const response = await ai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
@@ -220,7 +232,13 @@ Rules:
 Return only the JSON object, no additional text.`;
 
         try {
-          const response = await openai.chat.completions.create({
+          const ai = getOpenAI();
+          if (!ai) {
+            console.log('⚠️  OpenAI client not available for detail extraction');
+            return null;
+          }
+
+          const response = await ai.chat.completions.create({
             model: "gpt-4o",
             messages: [
               {
