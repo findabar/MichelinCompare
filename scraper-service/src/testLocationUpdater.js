@@ -107,9 +107,8 @@ Return only the JSON object, no additional text.`;
         for (const script of scripts) {
           const content = script.textContent || '';
           if (content.includes('dLayer')) {
-            // Log the actual script content for debugging (first 500 chars)
+            // Get preview of script content for debugging
             const preview = content.substring(0, 500);
-            console.log('🔍 Found dLayer script preview:', preview);
 
             // Extract dLayer values using regex - try both single and double quotes
             const extractValue = (key) => {
@@ -136,23 +135,31 @@ Return only the JSON object, no additional text.`;
               return null;
             };
 
-            const result = {
+            return {
               distinction: extractValue('distinction'),
               city: extractValue('city'),
               region: extractValue('region'),
               restaurant_selection: extractValue('restaurant_selection'),
               restaurant_name: extractValue('restaurant_name'),
               cookingtype: extractValue('cookingtype'),
-              scriptPreview: preview, // Include preview in result for debugging
+              scriptPreview: preview, // Include preview for debugging
             };
-
-            console.log('🔍 Extracted values:', result);
-
-            return result;
           }
         }
         return null;
       });
+
+      // Log the actual script content (in Node.js context, not browser context)
+      if (dLayerData && dLayerData.scriptPreview) {
+        console.log('🔍 Found dLayer script preview:', dLayerData.scriptPreview);
+        console.log('🔍 Extracted values:', {
+          distinction: dLayerData.distinction,
+          city: dLayerData.city,
+          region: dLayerData.region,
+          restaurant_selection: dLayerData.restaurant_selection,
+          restaurant_name: dLayerData.restaurant_name,
+        });
+      }
 
       await page.close();
 
