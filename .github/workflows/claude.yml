@@ -1,5 +1,10 @@
 name: Claude Code Interactive Agent
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 on:
   issue_comment:
     types: [created]
