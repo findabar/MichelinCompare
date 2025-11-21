@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../utils/prisma';
 import { restaurantQuerySchema } from '../utils/validation';
 import { createError } from '../middleware/errorHandler';
+import adminAuth from '../middleware/adminAuth';
 
 const router = express.Router();
 
@@ -134,7 +135,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', adminAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, address, city, country, cuisineType, michelinStars, description } = req.body;
@@ -187,7 +188,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', adminAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
 

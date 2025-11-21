@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { createError } from './errorHandler';
+import { prisma } from '../utils/prisma';
 
-// Simple admin authentication middleware
-// In production, you'd want more sophisticated role-based access control
-export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
+// Admin authentication middleware - verifies user is authenticated AND has admin role
+export const adminAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -25,16 +25,32 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
 
     const decoded = jwt.verify(token, jwtSecret) as any;
 
-    // For now, any authenticated user can run the scraper
-    // In production, you'd check for admin role here
     if (!decoded.userId) {
       return next(createError('Invalid token', 401));
+    }
+
+    // Fetch user from database to check admin status
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, admin: true },
+    });
+
+    if (!user) {
+      return next(createError('User not found', 401));
+    }
+
+    if (!user.admin) {
+      return next(createError('Access denied. Admin privileges required.', 403));
     }
 
     (req as any).userId = decoded.userId;
     next();
   } catch (error) {
-    next(createError('Invalid or expired token', 401));
+    if (error instanceof jwt.JsonWebTokenError) {
+      next(createError('Invalid or expired token', 401));
+    } else {
+      next(error);
+    }
   }
 };
 

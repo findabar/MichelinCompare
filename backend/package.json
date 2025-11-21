@@ -12,6 +12,7 @@
     "migrate:reset": "npx prisma migrate reset",
     "db:seed": "npx prisma db seed",
     "db:studio": "npx prisma studio",
+    "create-admin": "ts-node scripts/create-admin.ts",
     "scrape-michelin": "cd scripts && npm install && npm run scrape",
     "seed-production": "cd scripts && npm install && npm run seed-production",
     "seed-production-clear": "cd scripts && npm install && npm run seed-production-clear",
