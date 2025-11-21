@@ -209,12 +209,20 @@ Return only the JSON object, no additional text.`;
           return null;
         };
 
+        // Extract description from data-sheet__description div
+        let description = null;
+        const descriptionElement = document.querySelector('.data-sheet__description');
+        if (descriptionElement) {
+          description = descriptionElement.textContent.trim();
+        }
+
         return {
           distinction: extractValue('distinction'),
           city: extractValue('city'),
           restaurant_selection: extractValue('restaurant_selection'),
           restaurant_name: extractValue('restaurant_name'),
-          cookingtype: extractValue('cookingtype')
+          cookingtype: extractValue('cookingtype'),
+          description: description
         };
       });
 
@@ -315,9 +323,10 @@ Return only the JSON object, no additional text.`;
         }
       }
 
-      // Return combined data with stars from dLayer and contact from AI
+      // Return combined data with stars from dLayer, description from DOM, and contact from AI
       return {
         michelinStars: stars,
+        description: dLayerData?.description || null,
         streetAddress: contactDetails.streetAddress,
         phone: contactDetails.phone,
         url: contactDetails.url

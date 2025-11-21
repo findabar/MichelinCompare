@@ -152,6 +152,13 @@ Return only the JSON object, no additional text.`;
           return null;
         };
 
+        // Extract description from data-sheet__description div
+        let description = null;
+        const descriptionElement = document.querySelector('.data-sheet__description');
+        if (descriptionElement) {
+          description = descriptionElement.textContent.trim();
+        }
+
         return {
           distinction: extractValue('distinction'),
           city: extractValue('city'),
@@ -159,6 +166,7 @@ Return only the JSON object, no additional text.`;
           restaurant_selection: extractValue('restaurant_selection'),
           restaurant_name: extractValue('restaurant_name'),
           cookingtype: extractValue('cookingtype'),
+          description: description,
           scriptPreview: dLayerScriptPreview || 'No dLayer scripts found', // Include preview for debugging
         };
       });
@@ -201,6 +209,7 @@ Return only the JSON object, no additional text.`;
           city: dLayerData.city,
           country: dLayerData.restaurant_selection,
           michelinStars: stars,
+          description: dLayerData.description,
           url: url
         };
       }
@@ -578,6 +587,7 @@ Return only the JSON object, no additional text.`;
                     city: dLayerDetails.city || r.city,
                     country: dLayerDetails.country || r.country,
                     michelinStars: dLayerDetails.michelinStars,
+                    description: dLayerDetails.description || r.description,
                     approach: 'dLayer Extraction'
                   };
                 }
