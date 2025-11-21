@@ -567,6 +567,7 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
         country: matchedRestaurant.country,
         cuisineType: matchedRestaurant.cuisine,
         michelinStars: matchedRestaurant.michelinStars ? parseInt(matchedRestaurant.michelinStars) : null,
+        description: matchedRestaurant.description,
         michelinUrl: matchedRestaurant.url,
       } : null,
       differences: [] as string[],
@@ -588,6 +589,9 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
       }
       if (matchedRestaurant.michelinStars && parseInt(matchedRestaurant.michelinStars) !== restaurant.michelinStars) {
         comparison.differences.push('michelinStars');
+      }
+      if (matchedRestaurant.description && matchedRestaurant.description !== restaurant.description) {
+        comparison.differences.push('description');
       }
       if (matchedRestaurant.url && matchedRestaurant.url !== restaurant.michelinUrl) {
         comparison.differences.push('michelinUrl');
