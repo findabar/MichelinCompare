@@ -271,7 +271,7 @@ const RestaurantDetailPage = () => {
                 </select>
               </div>
             )}
-            {user && (
+            {user && user.admin && (
               <div className="flex items-center space-x-2">
                 {!isEditing ? (
                   <>
