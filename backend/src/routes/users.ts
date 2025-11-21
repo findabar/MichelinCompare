@@ -15,6 +15,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
         id: true,
         username: true,
         email: true,
+        admin: true,
         totalScore: true,
         restaurantsVisitedCount: true,
         createdAt: true,

@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  admin: boolean;
   totalScore: number;
   restaurantsVisitedCount: number;
   createdAt: string;
