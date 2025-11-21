@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { adminAuth } from '../middleware/adminAuth';
 import { createTestUser } from './utils/testHelpers';
 
 describe('Middleware Tests', () => {
@@ -179,6 +180,120 @@ describe('Middleware Tests', () => {
 
       expect(mockRequest.userId).toBe(testUserId);
       expect(mockNext).toHaveBeenCalledWith();
+    });
+  });
+
+  describe('adminAuth', () => {
+    let mockRequest: Partial<Request>;
+    let mockResponse: Partial<Response>;
+    let mockNext: NextFunction;
+
+    beforeEach(() => {
+      mockRequest = {
+        headers: {},
+      };
+      mockResponse = {};
+      mockNext = jest.fn();
+    });
+
+    it('should authenticate admin user and set userId', async () => {
+      const admin = await createTestUser({ admin: true });
+
+      mockRequest.headers = {
+        authorization: `Bearer ${admin.token}`,
+      };
+
+      await adminAuth(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext
+      );
+
+      expect((mockRequest as any).userId).toBe(admin.id);
+      expect(mockNext).toHaveBeenCalledWith();
+    });
+
+    it('should reject non-admin user with 403', async () => {
+      const user = await createTestUser({ admin: false });
+
+      mockRequest.headers = {
+        authorization: `Bearer ${user.token}`,
+      };
+
+      await adminAuth(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Access denied. Admin privileges required.',
+          statusCode: 403,
+        })
+      );
+      expect((mockRequest as any).userId).toBeUndefined();
+    });
+
+    it('should reject request without token', async () => {
+      mockRequest.headers = {};
+
+      await adminAuth(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'No authorization header provided',
+          statusCode: 401,
+        })
+      );
+    });
+
+    it('should reject request with invalid token', async () => {
+      mockRequest.headers = {
+        authorization: 'Bearer invalid.token.here',
+      };
+
+      await adminAuth(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Invalid or expired token',
+          statusCode: 401,
+        })
+      );
+    });
+
+    it('should reject token for non-existent user', async () => {
+      const token = jwt.sign(
+        { userId: 'non-existent-user-id' },
+        process.env.JWT_SECRET!,
+        { expiresIn: '1h' }
+      );
+
+      mockRequest.headers = {
+        authorization: `Bearer ${token}`,
+      };
+
+      await adminAuth(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'User not found',
+          statusCode: 401,
+        })
+      );
     });
   });
 });

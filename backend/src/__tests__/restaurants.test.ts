@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { createTestApp } from './utils/testApp';
-import { createTestRestaurant, createTestUser, createTestVisit } from './utils/testHelpers';
+import { createTestRestaurant, createTestUser, createTestVisit, getAuthHeader } from './utils/testHelpers';
 
 const app = createTestApp();
 
@@ -205,7 +205,8 @@ describe('Restaurant Routes', () => {
   });
 
   describe('PUT /api/restaurants/:id', () => {
-    it('should update restaurant details', async () => {
+    it('should update restaurant details with admin authentication', async () => {
+      const admin = await createTestUser({ admin: true });
       const restaurant = await createTestRestaurant({
         name: 'Original Name',
         city: 'Paris',
@@ -213,6 +214,7 @@ describe('Restaurant Routes', () => {
 
       const response = await request(app)
         .put(`/api/restaurants/${restaurant.id}`)
+        .set(getAuthHeader(admin.token))
         .send({
           name: 'Updated Name',
           city: 'Lyon',
@@ -224,9 +226,39 @@ describe('Restaurant Routes', () => {
       expect(response.body.restaurant.city).toBe('Lyon');
     });
 
+    it('should return 403 when non-admin user tries to update', async () => {
+      const user = await createTestUser({ admin: false });
+      const restaurant = await createTestRestaurant({
+        name: 'Original Name',
+      });
+
+      const response = await request(app)
+        .put(`/api/restaurants/${restaurant.id}`)
+        .set(getAuthHeader(user.token))
+        .send({ name: 'New Name' })
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Admin privileges required');
+    });
+
+    it('should return 401 when updating without authentication', async () => {
+      const restaurant = await createTestRestaurant();
+
+      const response = await request(app)
+        .put(`/api/restaurants/${restaurant.id}`)
+        .send({ name: 'New Name' })
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
     it('should return 404 when updating non-existent restaurant', async () => {
+      const admin = await createTestUser({ admin: true });
+
       const response = await request(app)
         .put('/api/restaurants/non-existent-id')
+        .set(getAuthHeader(admin.token))
         .send({ name: 'New Name' })
         .expect(404);
 
@@ -234,6 +266,7 @@ describe('Restaurant Routes', () => {
     });
 
     it('should partially update restaurant fields', async () => {
+      const admin = await createTestUser({ admin: true });
       const restaurant = await createTestRestaurant({
         name: 'Original Name',
         description: 'Original description',
@@ -241,6 +274,7 @@ describe('Restaurant Routes', () => {
 
       const response = await request(app)
         .put(`/api/restaurants/${restaurant.id}`)
+        .set(getAuthHeader(admin.token))
         .send({
           description: 'Updated description',
         })
@@ -252,13 +286,15 @@ describe('Restaurant Routes', () => {
   });
 
   describe('DELETE /api/restaurants/:id', () => {
-    it('should delete restaurant and its visits', async () => {
+    it('should delete restaurant and its visits with admin authentication', async () => {
+      const admin = await createTestUser({ admin: true });
       const user = await createTestUser();
       const restaurant = await createTestRestaurant({ name: 'To Delete' });
       await createTestVisit(user.id, restaurant.id);
 
       const response = await request(app)
         .delete(`/api/restaurants/${restaurant.id}`)
+        .set(getAuthHeader(admin.token))
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -271,19 +307,47 @@ describe('Restaurant Routes', () => {
         .expect(404);
     });
 
+    it('should return 403 when non-admin user tries to delete', async () => {
+      const user = await createTestUser({ admin: false });
+      const restaurant = await createTestRestaurant({ name: 'To Delete' });
+
+      const response = await request(app)
+        .delete(`/api/restaurants/${restaurant.id}`)
+        .set(getAuthHeader(user.token))
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Admin privileges required');
+    });
+
+    it('should return 401 when deleting without authentication', async () => {
+      const restaurant = await createTestRestaurant();
+
+      const response = await request(app)
+        .delete(`/api/restaurants/${restaurant.id}`)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
     it('should return 404 when deleting non-existent restaurant', async () => {
+      const admin = await createTestUser({ admin: true });
+
       const response = await request(app)
         .delete('/api/restaurants/non-existent-id')
+        .set(getAuthHeader(admin.token))
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
     });
 
     it('should delete restaurant with no visits', async () => {
+      const admin = await createTestUser({ admin: true });
       const restaurant = await createTestRestaurant();
 
       const response = await request(app)
         .delete(`/api/restaurants/${restaurant.id}`)
+        .set(getAuthHeader(admin.token))
         .expect(200);
 
       expect(response.body.success).toBe(true);

@@ -27,6 +27,7 @@ export async function createTestUser(
     username: string;
     email: string;
     password: string;
+    admin: boolean;
     totalScore: number;
     restaurantsVisitedCount: number;
   }> = {}
@@ -41,6 +42,7 @@ export async function createTestUser(
       username,
       email,
       passwordHash,
+      admin: overrides.admin || false,
       totalScore: overrides.totalScore || 0,
       restaurantsVisitedCount: overrides.restaurantsVisitedCount || 0,
     },
