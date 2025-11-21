@@ -1,8 +1,9 @@
 name: Claude Code Interactive Agent
 
 permissions:
-  contents: read
-  pages: write
+  contents: write
+  pull-requests: write
+  issues: write
   id-token: write
 
 on:
@@ -21,13 +22,11 @@ jobs:
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
-
+    
     steps:
-      # Step 1: Essential for Claude to access/modify the code
       - name: Checkout Repository
         uses: actions/checkout@v4 
         
-      # Step 2: The Claude Code Action
       - name: Run Claude Code Action
         uses: anthropics/claude-code-action@v1
         with:
