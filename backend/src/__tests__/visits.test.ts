@@ -305,7 +305,8 @@ describe('Visit Routes', () => {
     });
 
     it('should update user score when deleting visit', async () => {
-      const user = await createTestUser({ totalScore: 3, restaurantsVisitedCount: 1 });
+      // Start with 0 score - createTestVisit will add the restaurant's stars
+      const user = await createTestUser({ totalScore: 0, restaurantsVisitedCount: 0 });
       const restaurant = await createTestRestaurant({ michelinStars: 3 });
       const visit = await createTestVisit(user.id, restaurant.id);
 

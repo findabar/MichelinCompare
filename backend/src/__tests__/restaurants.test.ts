@@ -402,7 +402,7 @@ describe('Restaurant Routes', () => {
           .get(`/api/restaurants/${restaurant.id}`)
           .expect(200);
 
-        expect(response.body.michelinGuideUrl).toBe('not-a-valid-url');
+        expect(response.body.michelinUrl).toBe('not-a-valid-url');
       });
 
       it('should accept restaurant with empty URL', async () => {
@@ -415,7 +415,7 @@ describe('Restaurant Routes', () => {
           .get(`/api/restaurants/${restaurant.id}`)
           .expect(200);
 
-        expect(response.body.michelinGuideUrl).toBe('');
+        expect(response.body.michelinUrl).toBe('');
       });
     });
 

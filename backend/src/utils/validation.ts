@@ -24,5 +24,5 @@ export const restaurantQuerySchema = Joi.object({
   country: Joi.string().allow('').optional(),
   city: Joi.string().allow('').optional(),
   cuisineType: Joi.string().allow('').optional(),
-  michelinStars: Joi.number().integer().min(1).max(3).optional(),
+  michelinStars: Joi.number().integer().min(0).max(3).optional(),
 });

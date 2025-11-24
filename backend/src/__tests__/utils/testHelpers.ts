@@ -74,6 +74,8 @@ export async function createTestRestaurant(
     latitude: number;
     longitude: number;
     description: string;
+    michelinUrl: string;
+    michelinGuideUrl: string; // Alias for michelinUrl for backward compatibility
   }> = {}
 ): Promise<TestRestaurant> {
   const restaurant = await prisma.restaurant.create({
@@ -81,13 +83,14 @@ export async function createTestRestaurant(
       name: overrides.name || `Test Restaurant ${Date.now()}`,
       city: overrides.city || 'Paris',
       country: overrides.country || 'France',
-      michelinStars: overrides.michelinStars || 1,
+      michelinStars: overrides.michelinStars ?? 1,
       cuisineType: overrides.cuisineType || 'French',
       yearAwarded: overrides.yearAwarded || 2024,
       address: overrides.address || '123 Test Street',
       latitude: overrides.latitude || null,
       longitude: overrides.longitude || null,
       description: overrides.description || null,
+      michelinUrl: overrides.michelinUrl ?? overrides.michelinGuideUrl ?? null,
     },
   });
 
