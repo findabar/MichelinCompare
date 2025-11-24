@@ -108,7 +108,7 @@ const RestaurantDetailPage = () => {
           if (!response.data.hasDifferences && !response.data.hasLostStars) {
             toast.success('Restaurant data is already up to date!');
           } else if (response.data.hasLostStars) {
-            toast.warning('Restaurant no longer has Michelin stars');
+            toast.error('Restaurant no longer has Michelin stars');
           }
         } else {
           toast.error('Could not find restaurant on Michelin Guide');
