@@ -112,7 +112,17 @@ export async function createTestVisit(
     notes: string;
   }> = {}
 ) {
-  return await prisma.userVisit.create({
+  // Get restaurant to know the michelin stars
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+  });
+
+  if (!restaurant) {
+    throw new Error('Restaurant not found');
+  }
+
+  // Create the visit
+  const visit = await prisma.userVisit.create({
     data: {
       userId,
       restaurantId,
@@ -120,6 +130,21 @@ export async function createTestVisit(
       notes: overrides.notes || null,
     },
   });
+
+  // Update user's score and visit count
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      totalScore: {
+        increment: restaurant.michelinStars,
+      },
+      restaurantsVisitedCount: {
+        increment: 1,
+      },
+    },
+  });
+
+  return visit;
 }
 
 /**

@@ -1,6 +1,5 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma';
 import { generateToken } from '../utils/jwt';
 import { registerSchema, loginSchema } from '../utils/validation';
@@ -29,11 +28,13 @@ router.post('/register', async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Explicitly set only the validated fields to prevent field injection (e.g., admin: true)
     const user = await prisma.user.create({
       data: {
         username,
         email,
         passwordHash,
+        admin: false, // Explicitly set to false to prevent injection
       },
     });
 

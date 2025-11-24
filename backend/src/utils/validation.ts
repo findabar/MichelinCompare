@@ -4,7 +4,7 @@ export const registerSchema = Joi.object({
   username: Joi.string().alphanum().min(3).max(30).required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(6).required(),
-});
+}).options({ stripUnknown: true }); // Strip unknown fields like admin, isAdmin, role, etc.
 
 export const loginSchema = Joi.object({
   email: Joi.string().email().required(),
@@ -13,7 +13,7 @@ export const loginSchema = Joi.object({
 
 export const visitSchema = Joi.object({
   restaurantId: Joi.string().required(),
-  dateVisited: Joi.date().required(),
+  dateVisited: Joi.date().iso().required(),
   notes: Joi.string().allow('').optional(),
 });
 
