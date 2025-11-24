@@ -118,11 +118,13 @@ export const scraperAPI = {
           country: string;
           cuisineType: string;
           michelinStars: number | null;
+          distinction: string | null;
           michelinUrl: string | null;
         } | null;
         differences: string[];
       };
       hasDifferences: boolean;
+      hasLostStars: boolean;
     }>(`/scraper/preview-update/${id}`),
 };
 

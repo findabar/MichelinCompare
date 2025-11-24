@@ -31,6 +31,7 @@ const RestaurantDetailPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [hasLostStars, setHasLostStars] = useState(false);
   const [updatePreview, setUpdatePreview] = useState<{
     current: any;
     scraped: any;
@@ -102,9 +103,12 @@ const RestaurantDetailPage = () => {
       onSuccess: (response) => {
         if (response.data.comparison.scraped) {
           setUpdatePreview(response.data.comparison);
+          setHasLostStars(response.data.hasLostStars);
           setShowUpdateModal(true);
-          if (!response.data.hasDifferences) {
+          if (!response.data.hasDifferences && !response.data.hasLostStars) {
             toast.success('Restaurant data is already up to date!');
+          } else if (response.data.hasLostStars) {
+            toast.warning('Restaurant no longer has Michelin stars');
           }
         } else {
           toast.error('Could not find restaurant on Michelin Guide');
@@ -569,11 +573,26 @@ const RestaurantDetailPage = () => {
               {updatePreview.differences.length > 0 ? 'Updates Available from Michelin' : 'Restaurant Data Comparison'}
             </h3>
 
-            {updatePreview.differences.length === 0 ? (
+            {hasLostStars && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <p className="text-red-800 font-medium mb-2">
+                  ⚠️ Restaurant No Longer Has Michelin Stars
+                </p>
+                <p className="text-red-700 text-sm mb-2">
+                  This restaurant currently has {updatePreview.current.michelinStars} star(s) in the database,
+                  but the Michelin Guide now shows: <span className="font-semibold">{updatePreview.scraped.distinction || 'no stars'}</span>
+                </p>
+                <p className="text-red-700 text-sm">
+                  You may want to delete this restaurant from the database.
+                </p>
+              </div>
+            )}
+
+            {updatePreview.differences.length === 0 && !hasLostStars ? (
               <p className="text-gray-600 mb-6">
                 No differences found. Your restaurant data matches the Michelin Guide.
               </p>
-            ) : (
+            ) : updatePreview.differences.length > 0 ? (
               <div className="space-y-4 mb-6">
                 <p className="text-gray-600">
                   The following fields differ from the Michelin Guide:
@@ -662,7 +681,7 @@ const RestaurantDetailPage = () => {
                   )}
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="flex space-x-3">
               {updatePreview.differences.length > 0 && (
@@ -675,16 +694,30 @@ const RestaurantDetailPage = () => {
                   {applyUpdateMutation.isLoading ? 'Applying...' : 'Accept Changes'}
                 </button>
               )}
+              {hasLostStars && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpdateModal(false);
+                    setUpdatePreview(null);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium"
+                >
+                  Delete Restaurant
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setShowUpdateModal(false);
                   setUpdatePreview(null);
+                  setHasLostStars(false);
                 }}
                 disabled={applyUpdateMutation.isLoading}
-                className={`${updatePreview.differences.length > 0 ? 'flex-1' : 'w-full'} bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium`}
+                className={`${updatePreview.differences.length > 0 || hasLostStars ? 'flex-1' : 'w-full'} bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium`}
               >
-                {updatePreview.differences.length > 0 ? 'Reject' : 'Close'}
+                {updatePreview.differences.length > 0 || hasLostStars ? 'Cancel' : 'Close'}
               </button>
             </div>
           </div>
