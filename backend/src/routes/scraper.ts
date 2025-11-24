@@ -567,6 +567,7 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
         country: matchedRestaurant.country,
         cuisineType: matchedRestaurant.cuisine,
         michelinStars: matchedRestaurant.michelinStars ? parseInt(matchedRestaurant.michelinStars) : null,
+        distinction: matchedRestaurant.distinction || null,
         description: matchedRestaurant.description,
         michelinUrl: matchedRestaurant.url,
       } : null,
@@ -598,11 +599,19 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
       }
     }
 
+    // Check if restaurant has lost its stars (distinction is not "1 star", "2 star", or "3 star")
+    const hasLostStars = matchedRestaurant &&
+                         restaurant.michelinStars > 0 &&
+                         (matchedRestaurant.michelinStars === null || matchedRestaurant.michelinStars === 0) &&
+                         matchedRestaurant.distinction &&
+                         !matchedRestaurant.distinction.match(/[123]\s*star/i);
+
     res.json({
       success: true,
       restaurantId: id,
       comparison,
       hasDifferences: comparison.differences.length > 0,
+      hasLostStars: hasLostStars || false,
       scraperResult: scraperResult.result,
     });
 

@@ -209,6 +209,7 @@ Return only the JSON object, no additional text.`;
           city: dLayerData.city,
           country: dLayerData.restaurant_selection,
           michelinStars: stars,
+          distinction: dLayerData.distinction, // Include raw distinction field
           description: dLayerData.description,
           url: url
         };
@@ -576,10 +577,15 @@ Return only the JSON object, no additional text.`;
           try {
             const dLayerDetails = await this.extractRestaurantDetailsFromPage(firstMatch.url);
 
-            if (dLayerDetails && dLayerDetails.michelinStars !== null) {
-              this.log(`✅ Successfully extracted dLayer data with ${dLayerDetails.michelinStars} stars`);
+            if (dLayerDetails) {
+              const stars = dLayerDetails.michelinStars;
+              if (stars !== null) {
+                this.log(`✅ Successfully extracted dLayer data with ${stars} stars`);
+              } else {
+                this.log(`✅ Successfully extracted dLayer data - no stars (distinction: ${dLayerDetails.distinction})`);
+              }
 
-              // Update the matching result with dLayer data
+              // Update the matching result with dLayer data (including non-starred restaurants)
               enrichedResults = enrichedResults.map(r => {
                 if (r.url === firstMatch.url) {
                   return {
@@ -587,6 +593,7 @@ Return only the JSON object, no additional text.`;
                     city: dLayerDetails.city || r.city,
                     country: dLayerDetails.country || r.country,
                     michelinStars: dLayerDetails.michelinStars,
+                    distinction: dLayerDetails.distinction, // Include raw distinction field
                     description: dLayerDetails.description || r.description,
                     approach: 'dLayer Extraction'
                   };
@@ -594,14 +601,15 @@ Return only the JSON object, no additional text.`;
                 return r;
               });
 
-              // Filter to only include restaurants with Michelin stars
+              // Return all results including non-starred restaurants (marked for deletion if needed)
               const starredRestaurants = enrichedResults.filter(r => r.michelinStars !== null && r.michelinStars > 0);
-              console.log(`🌟 Filtered to ${starredRestaurants.length} starred restaurants (removed ${enrichedResults.length - starredRestaurants.length} without stars)`);
+              const nonStarredRestaurants = enrichedResults.filter(r => r.michelinStars === null || r.michelinStars === 0);
+              console.log(`🌟 Found ${starredRestaurants.length} starred restaurants and ${nonStarredRestaurants.length} without stars`);
 
-              // Return early with enriched data
+              // Return early with enriched data including non-starred restaurants
               return {
-                restaurants: starredRestaurants,
-                totalFound: starredRestaurants.length,
+                restaurants: enrichedResults, // Return all results, including non-starred
+                totalFound: enrichedResults.length,
                 debug: {
                   pageInfo,
                   selectorAnalysis,
