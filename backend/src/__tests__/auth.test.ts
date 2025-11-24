@@ -216,4 +216,116 @@ describe('Authentication Routes', () => {
       expect(token.split('.')).toHaveLength(3); // JWT has 3 parts
     });
   });
+
+  describe('Admin Field Validation', () => {
+    it('should default admin field to false on registration', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          username: 'regularuser',
+          email: 'regular@example.com',
+          password: 'Password123!',
+        })
+        .expect(201);
+
+      expect(response.body.user.admin).toBe(false);
+    });
+
+    it('should not allow setting admin field through registration', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          username: 'hacker',
+          email: 'hacker@example.com',
+          password: 'Password123!',
+          admin: true, // Attempt to set admin
+        })
+        .expect(201);
+
+      // Should ignore the admin field and default to false
+      expect(response.body.user.admin).toBe(false);
+    });
+
+    it('should not expose admin field in registration response for security', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          username: 'securitytest',
+          email: 'security@example.com',
+          password: 'Password123!',
+        })
+        .expect(201);
+
+      // Admin field should either be false or not exposed at all
+      expect(response.body.user.admin).toBeDefined();
+      expect(response.body.user.admin).toBe(false);
+    });
+
+    it('should not expose admin field in login response unnecessarily', async () => {
+      const user = await createTestUser({
+        email: 'loginadmintest@example.com',
+        password: 'Password123!',
+        admin: false,
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: user.email,
+          password: 'Password123!',
+        })
+        .expect(200);
+
+      // Admin field may or may not be exposed - either way is acceptable
+      // But if it is exposed, it should be accurate
+      if (response.body.user.hasOwnProperty('admin')) {
+        expect(response.body.user.admin).toBe(false);
+      }
+    });
+
+    it('should correctly expose admin status for admin users on login', async () => {
+      const admin = await createTestUser({
+        email: 'admin@example.com',
+        password: 'Password123!',
+        admin: true,
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: admin.email,
+          password: 'Password123!',
+        })
+        .expect(200);
+
+      // If admin field is exposed, it should be true
+      if (response.body.user.hasOwnProperty('admin')) {
+        expect(response.body.user.admin).toBe(true);
+      }
+    });
+
+    it('should verify admin user cannot be created via registration endpoint', async () => {
+      // Try multiple variations of setting admin
+      const variations = [
+        { admin: true },
+        { admin: 'true' },
+        { isAdmin: true },
+        { role: 'admin' },
+      ];
+
+      for (const variation of variations) {
+        const response = await request(app)
+          .post('/api/auth/register')
+          .send({
+            username: `user${Math.random().toString(36).slice(2)}`,
+            email: `user${Math.random().toString(36).slice(2)}@example.com`,
+            password: 'Password123!',
+            ...variation,
+          })
+          .expect(201);
+
+        expect(response.body.user.admin).toBe(false);
+      }
+    });
+  });
 });

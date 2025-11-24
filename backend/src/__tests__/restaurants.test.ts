@@ -354,4 +354,200 @@ describe('Restaurant Routes', () => {
       expect(response.body.deletedVisits).toBe(0);
     });
   });
+
+  describe('Edge Cases', () => {
+    describe('Very Long Descriptions', () => {
+      it('should handle extremely long descriptions', async () => {
+        const longDescription = 'A'.repeat(5000); // 5000 character description
+        const restaurant = await createTestRestaurant({
+          name: 'Long Description Restaurant',
+          description: longDescription,
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.description).toBe(longDescription);
+        expect(response.body.description.length).toBe(5000);
+      });
+
+      it('should update restaurant with very long description', async () => {
+        const admin = await createTestUser({ admin: true });
+        const restaurant = await createTestRestaurant({
+          name: 'Test Restaurant',
+        });
+
+        const longDescription = 'B'.repeat(10000);
+
+        const response = await request(app)
+          .put(`/api/restaurants/${restaurant.id}`)
+          .set(getAuthHeader(admin.token))
+          .send({ description: longDescription })
+          .expect(200);
+
+        expect(response.body.restaurant.description).toBe(longDescription);
+      });
+    });
+
+    describe('Invalid Michelin URLs', () => {
+      it('should accept restaurant with invalid URL format', async () => {
+        // System doesn't validate URLs at creation, only during scraping
+        const restaurant = await createTestRestaurant({
+          name: 'Invalid URL Restaurant',
+          michelinGuideUrl: 'not-a-valid-url',
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.michelinGuideUrl).toBe('not-a-valid-url');
+      });
+
+      it('should accept restaurant with empty URL', async () => {
+        const restaurant = await createTestRestaurant({
+          name: 'No URL Restaurant',
+          michelinGuideUrl: '',
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.michelinGuideUrl).toBe('');
+      });
+    });
+
+    describe('Invalid Star Values', () => {
+      it('should handle restaurants with 0 stars', async () => {
+        const restaurant = await createTestRestaurant({
+          name: 'Zero Stars',
+          michelinStars: 0,
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.michelinStars).toBe(0);
+      });
+
+      it('should filter by 0 stars', async () => {
+        await createTestRestaurant({ name: 'Zero Star Place', michelinStars: 0 });
+        await createTestRestaurant({ name: 'One Star Place', michelinStars: 1 });
+
+        const response = await request(app)
+          .get('/api/restaurants')
+          .query({ michelinStars: 0 })
+          .expect(200);
+
+        expect(response.body.restaurants.length).toBeGreaterThan(0);
+        expect(response.body.restaurants.every((r: any) => r.michelinStars === 0)).toBe(true);
+      });
+    });
+
+    describe('Special Characters in Names', () => {
+      it('should handle restaurant names with special characters', async () => {
+        const specialName = "L'Ami Jean & Co. - Paris (1st arr.)";
+        const restaurant = await createTestRestaurant({
+          name: specialName,
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.name).toBe(specialName);
+      });
+
+      it('should search for restaurants with special characters', async () => {
+        await createTestRestaurant({ name: "L'Auberge" });
+        await createTestRestaurant({ name: 'Regular Name' });
+
+        const response = await request(app)
+          .get('/api/restaurants')
+          .query({ search: "L'Auberge" })
+          .expect(200);
+
+        expect(response.body.restaurants).toHaveLength(1);
+        expect(response.body.restaurants[0].name).toBe("L'Auberge");
+      });
+
+      it('should handle emoji in restaurant names', async () => {
+        const emojiName = '🍕 Pizza Place 🍝';
+        const restaurant = await createTestRestaurant({
+          name: emojiName,
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.name).toBe(emojiName);
+      });
+
+      it('should handle unicode characters in descriptions', async () => {
+        const unicodeDescription = '日本料理 - Cuisine française - 中华料理';
+        const restaurant = await createTestRestaurant({
+          name: 'Unicode Test',
+          description: unicodeDescription,
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.description).toBe(unicodeDescription);
+      });
+    });
+
+    describe('Null and Empty Values', () => {
+      it('should handle null description', async () => {
+        const restaurant = await createTestRestaurant({
+          name: 'No Description',
+          description: null,
+        });
+
+        const response = await request(app)
+          .get(`/api/restaurants/${restaurant.id}`)
+          .expect(200);
+
+        expect(response.body.description).toBeNull();
+      });
+
+      it('should update description to null', async () => {
+        const admin = await createTestUser({ admin: true });
+        const restaurant = await createTestRestaurant({
+          name: 'Has Description',
+          description: 'Original description',
+        });
+
+        const response = await request(app)
+          .put(`/api/restaurants/${restaurant.id}`)
+          .set(getAuthHeader(admin.token))
+          .send({ description: null })
+          .expect(200);
+
+        expect(response.body.restaurant.description).toBeNull();
+      });
+    });
+
+    describe('Concurrent Requests', () => {
+      it('should handle multiple simultaneous reads', async () => {
+        const restaurant = await createTestRestaurant({ name: 'Concurrent Test' });
+
+        const requests = Array(10).fill(null).map(() =>
+          request(app).get(`/api/restaurants/${restaurant.id}`)
+        );
+
+        const responses = await Promise.all(requests);
+
+        responses.forEach((response) => {
+          expect(response.status).toBe(200);
+          expect(response.body.name).toBe('Concurrent Test');
+        });
+      });
+    });
+  });
 });
