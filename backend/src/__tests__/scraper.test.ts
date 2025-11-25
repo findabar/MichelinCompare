@@ -259,7 +259,6 @@ describe('Scraper Routes', () => {
       const restaurant = await createTestRestaurant({
         name: 'Null Description',
         michelinGuideUrl: 'https://guide.michelin.com/en/null-description',
-        description: null,
       });
 
       nock(scraperServiceUrl)

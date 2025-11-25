@@ -506,7 +506,6 @@ describe('Restaurant Routes', () => {
       it('should handle null description', async () => {
         const restaurant = await createTestRestaurant({
           name: 'No Description',
-          description: null,
         });
 
         const response = await request(app)

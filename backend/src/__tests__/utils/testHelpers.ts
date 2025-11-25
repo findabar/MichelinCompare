@@ -17,6 +17,9 @@ export interface TestRestaurant {
   country: string;
   michelinStars: number;
   cuisineType: string;
+  address: string;
+  description: string | null;
+  michelinUrl: string | null;
 }
 
 /**
@@ -101,6 +104,9 @@ export async function createTestRestaurant(
     country: restaurant.country,
     michelinStars: restaurant.michelinStars,
     cuisineType: restaurant.cuisineType,
+    address: restaurant.address,
+    description: restaurant.description,
+    michelinUrl: restaurant.michelinUrl,
   };
 }
 
