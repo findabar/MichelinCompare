@@ -39,7 +39,7 @@ router.get('/', async (req, res, next) => {
       where.cuisineType = { contains: cuisineType, mode: 'insensitive' };
     }
 
-    if (michelinStars) {
+    if (michelinStars != null) {
       where.michelinStars = michelinStars;
     }
 
