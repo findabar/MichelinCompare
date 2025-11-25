@@ -4,22 +4,25 @@ import http from 'http';
 import { URL } from 'url';
 import { createError } from '../middleware/errorHandler';
 import adminAuth from '../middleware/adminAuth';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// Type for restaurant with selected fields
+type RestaurantSelect = {
+  id: string;
+  name: string;
+  city: string;
+  country: string;
+  cuisineType: string;
+  michelinStars: number;
+};
 
 interface DuplicateGroup {
   name: string;
   matchedOn: string[];
   restaurantIds: string[];
-  restaurants: {
-    id: string;
-    name: string;
-    city: string;
-    country: string;
-    cuisineType: string;
-    michelinStars: number;
-  }[];
+  restaurants: RestaurantSelect[];
 }
 
 // Function to find potential duplicate restaurants
@@ -56,19 +59,19 @@ async function findDuplicateRestaurants(): Promise<DuplicateGroup[]> {
     const matchedOn: string[] = [];
 
     // Check if all share same city
-    const cities = new Set(group.map(r => r.city.toLowerCase().trim()));
+    const cities = new Set(group.map((r: RestaurantSelect) => r.city.toLowerCase().trim()));
     if (cities.size === 1) matchedOn.push('city');
 
     // Check if all share same country
-    const countries = new Set(group.map(r => r.country.toLowerCase().trim()));
+    const countries = new Set(group.map((r: RestaurantSelect) => r.country.toLowerCase().trim()));
     if (countries.size === 1) matchedOn.push('country');
 
     // Check if all share same cuisine type
-    const cuisines = new Set(group.map(r => r.cuisineType.toLowerCase().trim()));
+    const cuisines = new Set(group.map((r: RestaurantSelect) => r.cuisineType.toLowerCase().trim()));
     if (cuisines.size === 1) matchedOn.push('cuisineType');
 
     // Check if all share same star rating
-    const stars = new Set(group.map(r => r.michelinStars));
+    const stars = new Set(group.map((r: RestaurantSelect) => r.michelinStars));
     if (stars.size === 1) matchedOn.push('michelinStars');
 
     // Only include if at least one additional field matches
@@ -76,7 +79,7 @@ async function findDuplicateRestaurants(): Promise<DuplicateGroup[]> {
       duplicates.push({
         name: group[0].name,
         matchedOn,
-        restaurantIds: group.map(r => r.id),
+        restaurantIds: group.map((r: RestaurantSelect) => r.id),
         restaurants: group,
       });
     }
@@ -125,7 +128,7 @@ async function mergeRestaurants(restaurantIds: string[]): Promise<{
   });
 
   if (restaurants.length !== restaurantIds.length) {
-    const foundIds = restaurants.map(r => r.id);
+    const foundIds = restaurants.map((r: { id: string }) => r.id);
     const missingIds = restaurantIds.filter(id => !foundIds.includes(id));
     throw new Error(`Restaurants not found: ${missingIds.join(', ')}`);
   }
@@ -136,24 +139,24 @@ async function mergeRestaurants(restaurantIds: string[]): Promise<{
 
   // Merge data, picking best values
   const mergedData = {
-    name: pickBestString(restaurants.map(r => r.name)),
-    city: pickBestString(restaurants.map(r => r.city)),
-    country: pickBestString(restaurants.map(r => r.country)),
-    cuisineType: pickBestString(restaurants.map(r => r.cuisineType)),
-    michelinStars: pickBestNumber(restaurants.map(r => r.michelinStars)),
-    yearAwarded: pickBestNumber(restaurants.map(r => r.yearAwarded)),
-    address: pickBestString(restaurants.map(r => r.address)),
-    latitude: pickBestOptional(restaurants.map(r => r.latitude)),
-    longitude: pickBestOptional(restaurants.map(r => r.longitude)),
-    description: pickBestOptional(restaurants.map(r => r.description)),
-    imageUrl: pickBestOptional(restaurants.map(r => r.imageUrl)),
-    phone: pickBestOptional(restaurants.map(r => r.phone)),
-    website: pickBestOptional(restaurants.map(r => r.website)),
-    michelinUrl: pickBestOptional(restaurants.map(r => r.michelinUrl)),
+    name: pickBestString(restaurants.map((r: any) => r.name)),
+    city: pickBestString(restaurants.map((r: any) => r.city)),
+    country: pickBestString(restaurants.map((r: any) => r.country)),
+    cuisineType: pickBestString(restaurants.map((r: any) => r.cuisineType)),
+    michelinStars: pickBestNumber(restaurants.map((r: any) => r.michelinStars)),
+    yearAwarded: pickBestNumber(restaurants.map((r: any) => r.yearAwarded)),
+    address: pickBestString(restaurants.map((r: any) => r.address)),
+    latitude: pickBestOptional(restaurants.map((r: any) => r.latitude)),
+    longitude: pickBestOptional(restaurants.map((r: any) => r.longitude)),
+    description: pickBestOptional(restaurants.map((r: any) => r.description)),
+    imageUrl: pickBestOptional(restaurants.map((r: any) => r.imageUrl)),
+    phone: pickBestOptional(restaurants.map((r: any) => r.phone)),
+    website: pickBestOptional(restaurants.map((r: any) => r.website)),
+    michelinUrl: pickBestOptional(restaurants.map((r: any) => r.michelinUrl)),
   };
 
   // Use transaction to ensure data consistency
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Update primary restaurant with merged data
     await tx.restaurant.update({
       where: { id: primaryRestaurant.id },
@@ -166,7 +169,7 @@ async function mergeRestaurants(restaurantIds: string[]): Promise<{
       where: { restaurantId: primaryRestaurant.id },
       select: { userId: true },
     });
-    const existingUserIds = new Set(existingVisits.map(v => v.userId));
+    const existingUserIds = new Set(existingVisits.map((v: { userId: string }) => v.userId));
 
     // Delete visits that would create duplicates
     await tx.userVisit.deleteMany({
