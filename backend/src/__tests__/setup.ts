@@ -1,8 +1,9 @@
 // Set test environment variables BEFORE importing anything that uses them
-process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://localhost:5432/michelin_star_hunter_test?schema=public';
-process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
-process.env.JWT_EXPIRES_IN = '1h';
+// Only set if not already defined (CI will provide its own values)
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://localhost:5432/michelin_star_hunter_test?schema=public';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-key-for-testing-only';
+process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 import { prisma } from '../utils/prisma';
 
