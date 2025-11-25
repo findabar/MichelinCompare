@@ -33,21 +33,21 @@ describe('Scraper Routes', () => {
 
       // Mock the scraper service response
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(200, {
-          success: true,
-          restaurants: [
-            {
-              name: 'Test Restaurant',
-              michelinStars: 3,
-              description: 'New description',
-              address: '123 Main St',
-              city: 'Paris',
-              country: 'France',
-              michelinGuideUrl: restaurant.michelinGuideUrl,
-            },
-          ],
+          result: {
+            restaurants: [
+              {
+                name: 'Test Restaurant',
+                michelinStars: 3,
+                description: 'New description',
+                address: '123 Main St',
+                city: 'Paris',
+                country: 'France',
+                url: restaurant.michelinUrl,
+              },
+            ],
+          },
         });
 
       const response = await request(app)
@@ -95,21 +95,21 @@ describe('Scraper Routes', () => {
       });
 
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(200, {
-          success: true,
-          restaurants: [
-            {
-              name: 'Description Test',
-              michelinStars: restaurant.michelinStars,
-              description: 'Updated description text',
-              address: restaurant.address,
-              city: restaurant.city,
-              country: restaurant.country,
-              michelinGuideUrl: restaurant.michelinGuideUrl,
-            },
-          ],
+          result: {
+            restaurants: [
+              {
+                name: 'Description Test',
+                michelinStars: restaurant.michelinStars,
+                description: 'Updated description text',
+                address: restaurant.address,
+                city: restaurant.city,
+                country: restaurant.country,
+                url: restaurant.michelinUrl,
+              },
+            ],
+          },
         });
 
       const response = await request(app)
@@ -131,21 +131,21 @@ describe('Scraper Routes', () => {
       });
 
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(200, {
-          success: true,
-          restaurants: [
-            {
-              name: 'Lost Stars Test',
-              michelinStars: 2,
-              description: restaurant.description,
-              address: restaurant.address,
-              city: restaurant.city,
-              country: restaurant.country,
-              michelinGuideUrl: restaurant.michelinGuideUrl,
-            },
-          ],
+          result: {
+            restaurants: [
+              {
+                name: 'Lost Stars Test',
+                michelinStars: 2,
+                description: restaurant.description,
+                address: restaurant.address,
+                city: restaurant.city,
+                country: restaurant.country,
+                url: restaurant.michelinUrl,
+              },
+            ],
+          },
         });
 
       const response = await request(app)
@@ -179,8 +179,7 @@ describe('Scraper Routes', () => {
 
       // Mock scraper service to return error
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(500, {
           success: false,
           message: 'Scraper service error',
@@ -203,11 +202,11 @@ describe('Scraper Routes', () => {
 
       // Mock scraper to return empty results
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(200, {
-          success: true,
-          restaurants: [],
+          result: {
+            restaurants: [],
+          },
         });
 
       const response = await request(app)
@@ -229,21 +228,21 @@ describe('Scraper Routes', () => {
       });
 
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(200, {
-          success: true,
-          restaurants: [
-            {
-              name: 'Same Description',
-              michelinStars: 3, // Changed
-              description: 'Unchanged description', // Same
-              address: restaurant.address,
-              city: restaurant.city,
-              country: restaurant.country,
-              michelinGuideUrl: restaurant.michelinGuideUrl,
-            },
-          ],
+          result: {
+            restaurants: [
+              {
+                name: 'Same Description',
+                michelinStars: 3, // Changed
+                description: 'Unchanged description', // Same
+                address: restaurant.address,
+                city: restaurant.city,
+                country: restaurant.country,
+                url: restaurant.michelinUrl,
+              },
+            ],
+          },
         });
 
       const response = await request(app)
@@ -264,21 +263,21 @@ describe('Scraper Routes', () => {
       });
 
       nock(scraperServiceUrl)
-        .get('/scrape-location')
-        .query({ url: restaurant.michelinGuideUrl })
+        .post('/test-restaurant', { restaurantName: restaurant.name })
         .reply(200, {
-          success: true,
-          restaurants: [
-            {
-              name: 'Null Description',
-              michelinStars: restaurant.michelinStars,
-              description: 'New description added',
-              address: restaurant.address,
-              city: restaurant.city,
-              country: restaurant.country,
-              michelinGuideUrl: restaurant.michelinGuideUrl,
-            },
-          ],
+          result: {
+            restaurants: [
+              {
+                name: 'Null Description',
+                michelinStars: restaurant.michelinStars,
+                description: 'New description added',
+                address: restaurant.address,
+                city: restaurant.city,
+                country: restaurant.country,
+                url: restaurant.michelinUrl,
+              },
+            ],
+          },
         });
 
       const response = await request(app)

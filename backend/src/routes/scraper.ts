@@ -532,6 +532,11 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
       }
     }
 
+    // If no restaurant found in scraped data, return 404
+    if (!matchedRestaurant) {
+      return next(createError(`Restaurant "${restaurant.name}" not found in scraped data`, 404));
+    }
+
     // If we found a match, also fetch the restaurant page for more details
     let additionalDetails = {};
     if (matchedRestaurant?.url) {
@@ -599,19 +604,19 @@ router.get('/preview-update/:id', adminAuth, async (req, res, next) => {
       }
     }
 
-    // Check if restaurant has lost its stars (distinction is not "1 star", "2 star", or "3 star")
-    const hasLostStars = matchedRestaurant &&
-                         restaurant.michelinStars > 0 &&
-                         (matchedRestaurant.michelinStars === null || matchedRestaurant.michelinStars === 0) &&
-                         matchedRestaurant.distinction &&
-                         !matchedRestaurant.distinction.match(/[123]\s*star/i);
+    // Check if restaurant has lost its stars
+    const lostStars = restaurant.michelinStars > 0 &&
+                      matchedRestaurant.michelinStars !== undefined &&
+                      parseInt(matchedRestaurant.michelinStars) < restaurant.michelinStars;
+
+    // Add lostStars flag to comparison
+    (comparison as any).lostStars = lostStars;
 
     res.json({
       success: true,
       restaurantId: id,
       comparison,
       hasDifferences: comparison.differences.length > 0,
-      hasLostStars: hasLostStars || false,
       scraperResult: scraperResult.result,
     });
 
