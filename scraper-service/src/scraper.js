@@ -293,6 +293,92 @@ class MichelinScraper {
     console.log(`🔄 Infinite scroll completed after ${scrollAttempts} attempts`);
   }
 
+  /**
+   * Scrape detailed information from an individual restaurant page
+   */
+  async scrapeRestaurantDetails(url) {
+    const page = await this.browser.newPage();
+
+    try {
+      console.log(`🔍 Fetching details for: ${url}`);
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const details = await page.evaluate(() => {
+        // Try multiple selectors for description
+        const descriptionSelectors = [
+          '.restaurant-details__description',
+          '.poi-description',
+          '[data-restaurant-description]',
+          '.description',
+          '.about',
+          '.js-restaurant__description',
+          '.restaurant__description-content',
+          'div[class*="description"]',
+          'section[class*="about"]'
+        ];
+
+        let description = null;
+        for (const selector of descriptionSelectors) {
+          const descEl = document.querySelector(selector);
+          if (descEl && descEl.textContent?.trim()) {
+            description = descEl.textContent.trim();
+            break;
+          }
+        }
+
+        // Try multiple selectors for location/address
+        const locationSelectors = [
+          '.restaurant-details__heading--address',
+          '.poi-address',
+          '[data-address]',
+          '.address',
+          '.location-details',
+          '.restaurant__address'
+        ];
+
+        let locationText = null;
+        for (const selector of locationSelectors) {
+          const locEl = document.querySelector(selector);
+          if (locEl && locEl.textContent?.trim()) {
+            locationText = locEl.textContent.trim();
+            break;
+          }
+        }
+
+        // Try to get cuisine from detail page
+        const cuisineSelectors = [
+          '.restaurant-details__heading--cuisine',
+          '.poi-cuisine',
+          '[data-cuisine]',
+          '.cuisine-type'
+        ];
+
+        let cuisine = null;
+        for (const selector of cuisineSelectors) {
+          const cuisEl = document.querySelector(selector);
+          if (cuisEl && cuisEl.textContent?.trim()) {
+            cuisine = cuisEl.textContent.trim();
+            break;
+          }
+        }
+
+        return {
+          description,
+          locationText,
+          cuisine
+        };
+      });
+
+      await page.close();
+      return details;
+    } catch (error) {
+      console.error(`❌ Error fetching details from ${url}:`, error.message);
+      await page.close();
+      return null;
+    }
+  }
+
   async scrapeRestaurantsFromPage(page, starLevel) {
     try {
       // Try different selectors for restaurant cards based on Michelin Guide structure
@@ -557,19 +643,59 @@ class MichelinScraper {
 
       console.log(`🍽️  Found ${restaurants.length} restaurants on this page`);
 
-      // Add restaurants, checking for duplicates
+      // Add restaurants, checking for duplicates and fetching detailed information
       let addedCount = 0;
       let duplicateCount = 0;
 
-      restaurants.forEach(restaurant => {
+      for (const restaurant of restaurants) {
+        // Skip if duplicate
+        if (this.isRestaurantDuplicate(restaurant.name, restaurant.city, restaurant.country)) {
+          duplicateCount++;
+          continue;
+        }
+
+        // Fetch detailed information if URL is available
+        if (restaurant.url) {
+          console.log(`📖 Fetching detailed information for: ${restaurant.name}`);
+          const details = await this.scrapeRestaurantDetails(restaurant.url);
+
+          if (details) {
+            // Update description if found
+            if (details.description) {
+              restaurant.description = details.description;
+            }
+
+            // Update cuisine if found and better than listing
+            if (details.cuisine && details.cuisine !== 'Contemporary') {
+              restaurant.cuisineType = details.cuisine;
+            }
+
+            // Update location if found and parse it
+            if (details.locationText) {
+              const locationParts = details.locationText.split(',').map(p => p.trim()).filter(p => p);
+
+              if (locationParts.length >= 2) {
+                // Override with more accurate data from detail page
+                restaurant.city = locationParts[0];
+                restaurant.country = locationParts[locationParts.length - 1];
+                restaurant.address = details.locationText;
+              }
+            }
+          }
+
+          // Add a small delay to avoid overwhelming the server
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Add the restaurant with detailed information
         if (this.addRestaurantIfNew(restaurant)) {
           addedCount++;
         } else {
           duplicateCount++;
         }
-      });
+      }
 
-      console.log(`✅ Added ${addedCount} new restaurants, skipped ${duplicateCount} duplicates`);
+      console.log(`✅ Added ${addedCount} new restaurants with detailed info, skipped ${duplicateCount} duplicates`);
 
     } catch (error) {
       console.error('❌ Error scraping restaurants from page:', error.message);
