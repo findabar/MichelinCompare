@@ -8,17 +8,14 @@ RUN apt-get update && apt-get install -y netcat-traditional && rm -rf /var/lib/a
 # Copy package.json
 COPY package.json ./
 
-# Install dependencies
-RUN npm install
-
-# Copy prisma schema
+# Copy prisma schema before npm install (needed for postinstall script)
 COPY prisma ./prisma/
+
+# Install dependencies (postinstall will generate Prisma client)
+RUN npm install
 
 # Copy source code
 COPY . .
-
-# Generate Prisma client
-RUN npx prisma generate
 
 # Build the application
 RUN npm run build
