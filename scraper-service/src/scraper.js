@@ -1,6 +1,9 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
 
 class MichelinScraper {
   constructor() {
@@ -731,7 +734,47 @@ class MichelinScraper {
 
       console.log(`🎉 Scraping completed! Found ${this.restaurants.length} restaurants total`);
 
-      // Save to file with star level suffix
+      // Save to database (raw_data table)
+      console.log('💾 Saving to database...');
+
+      let savedCount = 0;
+      let errorCount = 0;
+
+      for (const restaurant of this.restaurants) {
+        try {
+          await prisma.rawData.create({
+            data: {
+              name: restaurant.name,
+              city: restaurant.city,
+              country: restaurant.country,
+              cuisineType: restaurant.cuisineType || restaurant.cuisine || 'Unknown',
+              michelinStars: restaurant.michelinStars,
+              yearAwarded: restaurant.yearAwarded || null,
+              address: restaurant.address || null,
+              latitude: restaurant.latitude || null,
+              longitude: restaurant.longitude || null,
+              description: restaurant.description || null,
+              imageUrl: restaurant.imageUrl || null,
+              phone: restaurant.phone || null,
+              website: restaurant.website || null,
+              michelinUrl: restaurant.url || restaurant.michelinUrl || null,
+              distinction: restaurant.distinction || null,
+              processed: false
+            }
+          });
+          savedCount++;
+        } catch (error) {
+          console.error(`❌ Error saving ${restaurant.name}:`, error.message);
+          errorCount++;
+        }
+      }
+
+      console.log(`✅ Saved ${savedCount} restaurants to database`);
+      if (errorCount > 0) {
+        console.log(`⚠️  ${errorCount} restaurants failed to save`);
+      }
+
+      // Also save to file as backup
       const dataDir = path.join(__dirname, 'data');
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
@@ -741,7 +784,7 @@ class MichelinScraper {
       const filePath = path.join(dataDir, `michelin-restaurants${starSuffix}.json`);
       fs.writeFileSync(filePath, JSON.stringify(this.restaurants, null, 2));
 
-      console.log(`💾 Data saved to: ${filePath}`);
+      console.log(`💾 Backup saved to: ${filePath}`);
       console.log(`📊 Total restaurants: ${this.restaurants.length}`);
 
       // Count by star level

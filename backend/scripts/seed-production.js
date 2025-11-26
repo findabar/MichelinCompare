@@ -1,6 +1,4 @@
 const { PrismaClient } = require('../node_modules/@prisma/client');
-const fs = require('fs');
-const path = require('path');
 
 const prisma = new PrismaClient();
 
@@ -8,17 +6,19 @@ async function seedProductionDatabase() {
   console.log('🌱 Starting production database seeding...');
 
   try {
-    // Read the scraped data
-    const dataPath = path.join(__dirname, 'data', 'michelin-restaurants.json');
+    // Read scraped data from raw_data table
+    const restaurantsData = await prisma.rawData.findMany({
+      where: { processed: false },
+      orderBy: { createdAt: 'asc' }
+    });
 
-    if (!fs.existsSync(dataPath)) {
-      console.error('❌ No scraped data found. Please run the scraper first:');
-      console.error('   npm run scrape-michelin');
+    if (restaurantsData.length === 0) {
+      console.log('⚠️  No unprocessed scraped data found in raw_data table.');
+      console.log('Please run the scraper first to populate raw_data.');
       process.exit(1);
     }
 
-    const restaurantsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-    console.log(`📊 Found ${restaurantsData.length} restaurants to seed`);
+    console.log(`📊 Found ${restaurantsData.length} unprocessed restaurants to seed`);
 
     // Clear existing restaurants (optional - be careful in production!)
     const clearExisting = process.argv.includes('--clear');
@@ -38,19 +38,26 @@ async function seedProductionDatabase() {
       const batch = restaurantsData.slice(i, i + batchSize);
       console.log(`🔄 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(restaurantsData.length / batchSize)}...`);
 
-      for (const restaurant of batch) {
+      for (const rawData of batch) {
         try {
           // Check if restaurant already exists
           const existing = await prisma.restaurant.findFirst({
             where: {
-              name: restaurant.name,
-              city: restaurant.city,
-              country: restaurant.country
+              name: rawData.name,
+              city: rawData.city,
+              country: rawData.country
             }
           });
 
           if (existing) {
-            console.log(`⏭️  Skipping existing: ${restaurant.name}, ${restaurant.city}`);
+            console.log(`⏭️  Skipping existing: ${rawData.name}, ${rawData.city}`);
+
+            // Mark as processed even if skipped
+            await prisma.rawData.update({
+              where: { id: rawData.id },
+              data: { processed: true }
+            });
+
             skippedCount++;
             continue;
           }
@@ -58,25 +65,34 @@ async function seedProductionDatabase() {
           // Create new restaurant
           await prisma.restaurant.create({
             data: {
-              name: restaurant.name,
-              city: restaurant.city,
-              country: restaurant.country,
-              cuisineType: restaurant.cuisineType,
-              michelinStars: restaurant.michelinStars,
-              yearAwarded: restaurant.yearAwarded,
-              address: restaurant.address,
-              latitude: restaurant.latitude,
-              longitude: restaurant.longitude,
-              description: restaurant.description,
-              imageUrl: restaurant.imageUrl
+              name: rawData.name,
+              city: rawData.city,
+              country: rawData.country,
+              cuisineType: rawData.cuisineType,
+              michelinStars: rawData.michelinStars,
+              yearAwarded: rawData.yearAwarded || 2024,
+              address: rawData.address || '',
+              latitude: rawData.latitude,
+              longitude: rawData.longitude,
+              description: rawData.description,
+              imageUrl: rawData.imageUrl,
+              phone: rawData.phone,
+              website: rawData.website,
+              michelinUrl: rawData.michelinUrl
             }
           });
 
+          // Mark as processed after successful creation
+          await prisma.rawData.update({
+            where: { id: rawData.id },
+            data: { processed: true }
+          });
+
           seededCount++;
-          console.log(`✅ Added: ${restaurant.name}, ${restaurant.city} (${restaurant.michelinStars}⭐)`);
+          console.log(`✅ Added: ${rawData.name}, ${rawData.city} (${rawData.michelinStars}⭐)`);
 
         } catch (error) {
-          console.error(`❌ Error seeding ${restaurant.name}:`, error.message);
+          console.error(`❌ Error seeding ${rawData.name}:`, error.message);
         }
       }
 
