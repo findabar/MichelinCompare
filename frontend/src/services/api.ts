@@ -126,6 +126,16 @@ export const scraperAPI = {
       hasDifferences: boolean;
       hasLostStars: boolean;
     }>(`/scraper/preview-update/${id}`),
+
+  seedProduction: (clearExisting = false) =>
+    api.post<{
+      success: boolean;
+      message: string;
+      seededCount: number;
+      skippedCount: number;
+      output: string;
+      stderr?: string;
+    }>('/scraper/seed-production', { clearExisting }),
 };
 
 export default api;

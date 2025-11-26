@@ -710,5 +710,67 @@ router.post('/merge', adminAuth, async (_req, res, next) => {
   }
 });
 
+// Trigger production database seeding
+router.post('/seed-production', adminAuth, async (req, res) => {
+  try {
+    console.log('🌱 Triggering production database seeding via API...');
+
+    const { exec } = require('child_process');
+    const path = require('path');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
+
+    // Determine if --clear flag should be used
+    const clearExisting = req.body.clearExisting === true;
+    const scriptPath = path.join(__dirname, '../../scripts/seed-production.js');
+    const command = `node ${scriptPath}${clearExisting ? ' --clear' : ''}`;
+
+    console.log(`  Running: ${command}`);
+
+    // Execute the seeding script
+    const { stdout, stderr } = await execPromise(command, {
+      cwd: path.join(__dirname, '../..'),
+      timeout: 600000, // 10 minute timeout
+    });
+
+    // Parse output for statistics
+    const outputLines = stdout.split('\n');
+    let seededCount = 0;
+    let skippedCount = 0;
+
+    for (const line of outputLines) {
+      if (line.includes('Seeded:')) {
+        const match = line.match(/(\d+)/);
+        if (match) seededCount = parseInt(match[1]);
+      }
+      if (line.includes('Skipped:')) {
+        const match = line.match(/(\d+)/);
+        if (match) skippedCount = parseInt(match[1]);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Production database seeding completed successfully',
+      seededCount,
+      skippedCount,
+      output: stdout,
+      stderr: stderr || undefined,
+    });
+
+  } catch (error) {
+    console.error('❌ Production seeding failed:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const stderr = (error as any).stderr;
+
+    res.status(500).json({
+      success: false,
+      message: 'Production seeding failed',
+      error: errorMessage,
+      stderr: stderr || undefined,
+    });
+  }
+});
+
 
 export default router;
