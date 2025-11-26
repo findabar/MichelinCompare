@@ -308,6 +308,69 @@ class MichelinScraper {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const details = await page.evaluate(() => {
+        // Country name translation map
+        const countryTranslations = {
+          'España': 'Spain',
+          'France': 'France',
+          'Italia': 'Italy',
+          'Deutschland': 'Germany',
+          'Schweiz': 'Switzerland',
+          'Suisse': 'Switzerland',
+          'Österreich': 'Austria',
+          'Nederland': 'Netherlands',
+          'België': 'Belgium',
+          'Belgique': 'Belgium',
+          'Portugal': 'Portugal',
+          'United Kingdom': 'United Kingdom',
+          'Ireland': 'Ireland',
+          'Danmark': 'Denmark',
+          'Sverige': 'Sweden',
+          'Norge': 'Norway',
+          'Suomi': 'Finland',
+          'Polska': 'Poland',
+          'Česko': 'Czech Republic',
+          'Magyarország': 'Hungary',
+          'Ελλάδα': 'Greece',
+          'Türkiye': 'Turkey',
+          '日本': 'Japan',
+          'Hong Kong SAR': 'Hong Kong',
+          'Singapore': 'Singapore',
+          'Thailand': 'Thailand',
+          'South Korea': 'South Korea',
+          'United States': 'USA',
+          'Canada': 'Canada',
+          'México': 'Mexico',
+          'Brasil': 'Brazil',
+          'Argentina': 'Argentina',
+          'Chile': 'Chile',
+          'Peru': 'Peru',
+          'Colombia': 'Colombia',
+          'Australia': 'Australia',
+          'New Zealand': 'New Zealand',
+          'South Africa': 'South Africa',
+          'United Arab Emirates': 'UAE',
+          'China': 'China',
+          '中国': 'China'
+        };
+
+        // Get city and country from dataLayer
+        let city = null;
+        let country = null;
+
+        try {
+          if (window.dataLayer && Array.isArray(window.dataLayer)) {
+            for (const layer of window.dataLayer) {
+              if (layer.city) city = layer.city;
+              if (layer.country) {
+                country = countryTranslations[layer.country] || layer.country;
+              }
+              if (city && country) break;
+            }
+          }
+        } catch (e) {
+          console.error('Error reading dataLayer:', e);
+        }
+
         // Try multiple selectors for description
         const descriptionSelectors = [
           '.restaurant-details__description',
@@ -330,45 +393,34 @@ class MichelinScraper {
           }
         }
 
-        // Try multiple selectors for location/address
-        const locationSelectors = [
-          '.restaurant-details__heading--address',
-          '.poi-address',
-          '[data-address]',
-          '.address',
-          '.location-details',
-          '.restaurant__address'
-        ];
-
-        let locationText = null;
-        for (const selector of locationSelectors) {
-          const locEl = document.querySelector(selector);
-          if (locEl && locEl.textContent?.trim()) {
-            locationText = locEl.textContent.trim();
-            break;
-          }
-        }
-
-        // Try to get cuisine from detail page
-        const cuisineSelectors = [
-          '.restaurant-details__heading--cuisine',
-          '.poi-cuisine',
-          '[data-cuisine]',
-          '.cuisine-type'
-        ];
-
+        // Get cuisine from data-sheet__block--text
         let cuisine = null;
-        for (const selector of cuisineSelectors) {
-          const cuisEl = document.querySelector(selector);
-          if (cuisEl && cuisEl.textContent?.trim()) {
-            cuisine = cuisEl.textContent.trim();
-            break;
+        try {
+          const dataSheetBlocks = document.querySelectorAll('.js-restaurant__info .data-sheet__block.data-sheet__block--text');
+
+          for (const block of dataSheetBlocks) {
+            const text = block.textContent?.trim() || '';
+            // Skip if it's just price symbols (££££)
+            if (text && !/^[£$€¥₩]+$/.test(text)) {
+              // Extract cuisine after price symbols
+              const match = text.match(/[£$€¥₩]+\s*[·•]\s*(.+)/);
+              if (match) {
+                cuisine = match[1].trim();
+              } else if (!text.includes('•') && !text.includes('·')) {
+                // If no separator, might be just the cuisine
+                cuisine = text;
+              }
+              if (cuisine) break;
+            }
           }
+        } catch (e) {
+          console.error('Error extracting cuisine:', e);
         }
 
         return {
           description,
-          locationText,
+          city,
+          country,
           cuisine
         };
       });
@@ -668,21 +720,19 @@ class MichelinScraper {
               restaurant.description = details.description;
             }
 
-            // Update cuisine if found and better than listing
-            if (details.cuisine && details.cuisine !== 'Contemporary') {
-              restaurant.cuisineType = details.cuisine;
+            // Update city from dataLayer (most accurate)
+            if (details.city) {
+              restaurant.city = details.city;
             }
 
-            // Update location if found and parse it
-            if (details.locationText) {
-              const locationParts = details.locationText.split(',').map(p => p.trim()).filter(p => p);
+            // Update country from dataLayer (translated to English)
+            if (details.country) {
+              restaurant.country = details.country;
+            }
 
-              if (locationParts.length >= 2) {
-                // Override with more accurate data from detail page
-                restaurant.city = locationParts[0];
-                restaurant.country = locationParts[locationParts.length - 1];
-                restaurant.address = details.locationText;
-              }
+            // Update cuisine from data-sheet block
+            if (details.cuisine) {
+              restaurant.cuisineType = details.cuisine;
             }
           }
 
