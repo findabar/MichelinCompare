@@ -772,5 +772,43 @@ router.post('/seed-production', adminAuth, async (req, res) => {
   }
 });
 
+// POST /api/scraper/load - Load restaurants from Michelin URLs to raw_data table (requires admin authentication)
+router.post('/load', adminAuth, async (req, res, next) => {
+  try {
+    const { stars } = req.body;
+
+    console.log(`🚀 Triggering restaurant loader service${stars ? ` for ${Array.isArray(stars) ? stars.join(', ') : stars} star restaurants` : ''}...`);
+
+    // Prepare request data
+    const requestData: any = {};
+    if (stars !== undefined) {
+      requestData.stars = stars;
+    }
+
+    // Call the scraper service loader endpoint
+    const result = await makeRequest(`${SCRAPER_SERVICE_URL}/load`, {
+      method: 'POST',
+      data: requestData
+    });
+
+    res.status(202).json({
+      message: `Restaurant loading started successfully${stars ? ` for ${Array.isArray(stars) ? stars.join(', ') : stars} star restaurants` : ''}`,
+      scraperService: SCRAPER_SERVICE_URL,
+      targetStars: stars,
+      result
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start restaurant loader:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Request failed')) {
+      return next(createError('Scraper service unavailable. Please ensure the scraper service is running.', 503));
+    }
+
+    next(createError(`Failed to start restaurant loader: ${errorMessage}`, 500));
+  }
+});
+
 
 export default router;

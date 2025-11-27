@@ -4,6 +4,7 @@ const MichelinScraper = require('./scraper');
 const { seedDatabase } = require('./seeder');
 const { LocationUpdater } = require('./locationUpdater');
 const { TestLocationUpdater } = require('./testLocationUpdater');
+const { loader } = require('./loader');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -252,6 +253,37 @@ app.post('/test-restaurant', async (req, res) => {
   }
 });
 
+// Load all restaurants from Michelin star URLs to raw_data table
+app.post('/load', async (req, res) => {
+  try {
+    const { stars } = req.body;
+
+    // Validate stars parameter if provided
+    let starLevels = [3, 2, 1]; // default to all
+    if (stars !== undefined) {
+      starLevels = Array.isArray(stars) ? stars : [stars];
+    }
+
+    console.log(`🚀 Loader endpoint called for ${starLevels.join(', ')}-star restaurants`);
+
+    // Return immediately to indicate process has started
+    res.status(202).json({
+      message: `Restaurant loading started for ${starLevels.join(', ')}-star restaurants`,
+      status: 'Processing',
+      starLevels,
+      timestamp: new Date()
+    });
+
+    // Run loader in background
+    const result = await loader(starLevels);
+
+    console.log('✅ Loader completed successfully:', result);
+
+  } catch (error) {
+    console.error('❌ Loader failed:', error);
+  }
+});
+
 async function runScrapingProcess(starLevels = [3, 2, 1]) {
   try {
     scraperStatus.progress = 'Initializing scraper...';
@@ -360,6 +392,7 @@ app.listen(PORT, () => {
   console.log(`   POST /update-locations    - Start location update process (with filtering)`);
   console.log(`   POST /stop-location-update - Stop location update process`);
   console.log(`   POST /test-restaurant     - Test single restaurant lookup`);
+  console.log(`   POST /load                - Load restaurants to raw_data table (admin only)`);
   console.log(``);
   console.log(`🔍 Location Update Filtering Options:`);
   console.log(`   Default (unknown):  { "filterType": "unknown" }`);
