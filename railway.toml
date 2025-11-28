@@ -1,16 +1,4 @@
-[build]
-builder = "nixpacks"
-buildCommand = "cd backend && npm install && npx prisma generate && npm run build"
-
-[deploy]
-startCommand = "cd backend && npx prisma db push && node dist/server.js"
-
-[[services]]
-name = "backend"
-
-[services.variables]
-NODE_ENV = "production"
-PORT = "${{ PORT }}"
-JWT_SECRET = "${{ JWT_SECRET }}"
-JWT_EXPIRES_IN = "7d"
-FRONTEND_URL = "${{ FRONTEND_URL }}"
+# This file is deprecated - each service uses its own railway.toml
+# Backend uses: backend/railway.toml
+# Frontend uses: frontend/railway.toml
+# Scraper uses: scraper-service/railway.toml
