@@ -1,4 +1,0 @@
-# This file is deprecated - each service uses its own railway.toml
-# Backend uses: backend/railway.toml
-# Frontend uses: frontend/railway.toml
-# Scraper uses: scraper-service/railway.toml
