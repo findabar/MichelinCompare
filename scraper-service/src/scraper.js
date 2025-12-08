@@ -554,9 +554,10 @@ class MichelinScraper {
               '.title'
             ];
 
-            // Try multiple selector patterns for location
+            // Try multiple selector patterns for location (fallback)
             const locationSelectors = [
               '.card__menu-footer--location',
+              '.card__menu-footer--score',
               '.location',
               '.address',
               '.city',
@@ -567,20 +568,9 @@ class MichelinScraper {
               '.restaurant-location'
             ];
 
-            // Try multiple selector patterns for cuisine
-            const cuisineSelectors = [
-              '.card__menu-content--subtitle',
-              '.cuisine',
-              '.cuisine-type',
-              '.category',
-              '.poi-category',
-              '.card__menu-content .subtitle',
-              '.restaurant-cuisine'
-            ];
-
             let nameEl = null;
-            let cityEl = null;
-            let cuisineEl = null;
+            let locationText = '';
+            let cuisineText = 'Contemporary';
 
             // Find name element
             for (const sel of nameSelectors) {
@@ -588,24 +578,45 @@ class MichelinScraper {
               if (nameEl && nameEl.textContent?.trim()) break;
             }
 
-            // Find location element
-            for (const sel of locationSelectors) {
-              cityEl = card.querySelector(sel);
-              if (cityEl && cityEl.textContent?.trim()) break;
+            // Find ALL card__menu-footer--score elements (contains both location and cuisine)
+            const footerScoreElements = card.querySelectorAll('.card__menu-footer--score');
+
+            if (footerScoreElements.length > 0) {
+              // First element is usually the location (e.g., "Bangkok, Thailand")
+              const firstElement = footerScoreElements[0]?.textContent?.trim();
+              if (firstElement) {
+                locationText = firstElement;
+              }
+
+              // Second element usually contains price + cuisine (e.g., "฿฿฿฿ · Thai Cuisine")
+              if (footerScoreElements.length > 1) {
+                const secondElement = footerScoreElements[1]?.textContent?.trim();
+                if (secondElement) {
+                  // Extract cuisine after price symbols and separator (·, •, or -)
+                  const cuisineMatch = secondElement.match(/[£$€¥฿₩]+\s*[·•\-]\s*(.+)/);
+                  if (cuisineMatch && cuisineMatch[1]) {
+                    cuisineText = cuisineMatch[1].trim();
+                  }
+                }
+              }
             }
 
-            // Find cuisine element
-            for (const sel of cuisineSelectors) {
-              cuisineEl = card.querySelector(sel);
-              if (cuisineEl && cuisineEl.textContent?.trim()) break;
+            // Fallback to old selectors if card__menu-footer--score didn't work
+            if (!locationText) {
+              for (const sel of locationSelectors) {
+                const el = card.querySelector(sel);
+                if (el && el.textContent?.trim()) {
+                  locationText = el.textContent.trim();
+                  break;
+                }
+              }
             }
 
             const linkEl = card.querySelector('a[href*="/restaurant"], a[href*="/establishment"]');
 
             if (nameEl && nameEl.textContent?.trim()) {
               const name = nameEl.textContent.trim();
-              const locationText = cityEl?.textContent?.trim() || '';
-              const cuisine = cuisineEl?.textContent?.trim() || 'Contemporary';
+              const cuisine = cuisineText;
               const href = linkEl?.getAttribute('href');
 
               // Enhanced location parsing
@@ -714,6 +725,13 @@ class MichelinScraper {
           console.log(`📖 Fetching detailed information for: ${restaurant.name}`);
           const details = await this.scrapeRestaurantDetails(restaurant.url);
 
+          console.log(`🔍 Details scraped for ${restaurant.name}:`, {
+            city: details?.city || 'null',
+            country: details?.country || 'null',
+            cuisine: details?.cuisine || 'null',
+            description: details?.description ? `${details.description.substring(0, 50)}...` : 'null'
+          });
+
           if (details) {
             // Update description if found
             if (details.description) {
@@ -723,17 +741,22 @@ class MichelinScraper {
             // Update city from dataLayer (most accurate)
             if (details.city) {
               restaurant.city = details.city;
+              console.log(`✅ Updated city from dataLayer: ${details.city}`);
             }
 
             // Update country from dataLayer (translated to English)
             if (details.country) {
               restaurant.country = details.country;
+              console.log(`✅ Updated country from dataLayer: ${details.country}`);
             }
 
             // Update cuisine from data-sheet block
             if (details.cuisine) {
               restaurant.cuisineType = details.cuisine;
+              console.log(`✅ Updated cuisine from data-sheet: ${details.cuisine}`);
             }
+          } else {
+            console.log(`⚠️  No details returned for ${restaurant.name}, using card data: ${restaurant.city}, ${restaurant.country}, ${restaurant.cuisineType}`);
           }
 
           // Add a small delay to avoid overwhelming the server
