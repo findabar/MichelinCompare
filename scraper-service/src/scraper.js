@@ -795,7 +795,7 @@ class MichelinScraper {
                 country,
                 cuisineType: cuisine,
                 michelinStars: stars,
-                distinction: stars,
+                distinction: String(stars),
                 yearAwarded: new Date().getFullYear(),
                 address: fullAddress,
                 latitude: null,
