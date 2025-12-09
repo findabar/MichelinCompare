@@ -431,11 +431,64 @@ class MichelinScraper {
           console.error('Error extracting cuisine:', e);
         }
 
+        // Extract website URL from "Visit Website" button
+        let website = null;
+        try {
+          const websiteLinks = document.querySelectorAll('a.js-dtm-link');
+          for (const link of websiteLinks) {
+            const linkText = link.textContent?.trim() || '';
+            if (linkText.includes('Visit Website')) {
+              website = link.getAttribute('href');
+              console.log(`[DEBUG] Found website link: ${website}`);
+              break;
+            }
+          }
+
+          if (!website) {
+            // Fallback: try to find by data-event attribute
+            const websiteButton = document.querySelector('a[data-event="CTA_website"]');
+            if (websiteButton) {
+              website = websiteButton.getAttribute('href');
+              console.log(`[DEBUG] Found website link via data-event: ${website}`);
+            }
+          }
+        } catch (e) {
+          console.error('Error extracting website:', e);
+        }
+
+        // Extract phone number from tel: link
+        let phone = null;
+        try {
+          const phoneLinks = document.querySelectorAll('a[href^="tel:"]');
+          if (phoneLinks.length > 0) {
+            // Get the href attribute and remove 'tel:' prefix
+            const telHref = phoneLinks[0].getAttribute('href');
+            phone = telHref.replace('tel:', '').trim();
+            console.log(`[DEBUG] Found phone number: ${phone}`);
+          }
+
+          if (!phone) {
+            // Fallback: try to find by data-event attribute
+            const phoneButton = document.querySelector('a[data-event="CTA_tel"]');
+            if (phoneButton) {
+              const telHref = phoneButton.getAttribute('href');
+              if (telHref) {
+                phone = telHref.replace('tel:', '').trim();
+                console.log(`[DEBUG] Found phone number via data-event: ${phone}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error extracting phone:', e);
+        }
+
         return {
           description,
           city,
           country,
-          cuisine
+          cuisine,
+          website,
+          phone
         };
       }, url);
 
@@ -745,6 +798,8 @@ class MichelinScraper {
             city: details?.city || 'null',
             country: details?.country || 'null',
             cuisine: details?.cuisine || 'null',
+            website: details?.website || 'null',
+            phone: details?.phone || 'null',
             description: details?.description ? `${details.description.substring(0, 50)}...` : 'null'
           });
 
@@ -773,6 +828,18 @@ class MichelinScraper {
             if (details.cuisine) {
               restaurant.cuisineType = details.cuisine;
               console.log(`✅ Updated cuisine from data-sheet: ${details.cuisine}`);
+            }
+
+            // Update website URL from "Visit Website" button
+            if (details.website) {
+              restaurant.website = details.website;
+              console.log(`✅ Updated website: ${details.website}`);
+            }
+
+            // Update phone number from tel: link
+            if (details.phone) {
+              restaurant.phone = details.phone;
+              console.log(`✅ Updated phone: ${details.phone}`);
             }
           } else {
             console.log(`⚠️  No details returned for ${restaurant.name}, using card data: ${restaurant.city}, ${restaurant.country}, ${restaurant.cuisineType}`);
