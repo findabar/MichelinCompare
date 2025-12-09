@@ -310,6 +310,45 @@ class MichelinScraper {
       const details = await page.evaluate((pageUrl) => {
         console.log(`[DEBUG] Scraping details from: ${pageUrl}`);
 
+        // Extract region from URL to map to country
+        // URL format: /en/[region]/[city]/restaurant/[name]
+        const urlParts = pageUrl.split('/').filter(p => p);
+        const region = urlParts.length > 2 ? urlParts[1] : null;
+        console.log(`[DEBUG] Extracted region from URL: ${region}`);
+
+        // Map regions to countries (Michelin dataLayer returns 'en' instead of country)
+        const regionToCountry = {
+          // France regions
+          'auvergne-rhone-alpes': 'France', 'bourgogne-franche-comte': 'France', 'bretagne': 'France',
+          'centre-val-de-loire': 'France', 'corse': 'France', 'grand-est': 'France',
+          'hauts-de-france': 'France', 'ile-de-france': 'France', 'normandie': 'France',
+          'nouvelle-aquitaine': 'France', 'occitanie': 'France', 'pays-de-la-loire': 'France',
+          'provence-alpes-cote-d-azur': 'France',
+          // Spain regions
+          'andalucia': 'Spain', 'aragon': 'Spain', 'asturias': 'Spain', 'cantabria': 'Spain',
+          'castilla-la-mancha': 'Spain', 'castilla-y-leon': 'Spain', 'cataluna': 'Spain',
+          'comunidad-de-madrid': 'Spain', 'comunitat-valenciana': 'Spain', 'extremadura': 'Spain',
+          'galicia': 'Spain', 'islas-baleares': 'Spain', 'islas-canarias': 'Spain',
+          'la-rioja': 'Spain', 'navarra': 'Spain', 'pais-vasco': 'Spain', 'region-de-murcia': 'Spain',
+          // Italy regions
+          'abruzzo': 'Italy', 'basilicata': 'Italy', 'calabria': 'Italy', 'campania': 'Italy',
+          'emilia-romagna': 'Italy', 'friuli-venezia-giulia': 'Italy', 'lazio': 'Italy', 'liguria': 'Italy',
+          'lombardia': 'Italy', 'marche': 'Italy', 'molise': 'Italy', 'piemonte': 'Italy',
+          'puglia': 'Italy', 'sardegna': 'Italy', 'sicilia': 'Italy', 'toscana': 'Italy',
+          'trentino-alto-adige': 'Italy', 'umbria': 'Italy', 'valle-d-aosta': 'Italy', 'veneto': 'Italy',
+          // Germany
+          'baden-wurttemberg': 'Germany', 'bayern': 'Germany', 'berlin': 'Germany',
+          'hamburg': 'Germany', 'hessen': 'Germany', 'nordrhein-westfalen': 'Germany',
+          // UK
+          'england': 'United Kingdom', 'scotland': 'United Kingdom', 'wales': 'United Kingdom',
+          'great-britain': 'United Kingdom',
+          // Asia
+          'bangkok-region': 'Thailand', 'chiang-mai-region': 'Thailand', 'phuket-region': 'Thailand',
+          'tokyo': 'Japan', 'osaka': 'Japan', 'kyoto': 'Japan', 'hong-kong-macau': 'Hong Kong',
+          // USA
+          'california': 'USA', 'new-york': 'USA', 'florida': 'USA', 'washington-dc': 'USA'
+        };
+
         // Country name translation map
         const countryTranslations = {
           'España': 'Spain',
@@ -378,6 +417,17 @@ class MichelinScraper {
               if (city && country) break;
             }
             console.log(`[DEBUG] Final dataLayer extraction: city=${city}, country=${country}`);
+
+            // If country is 'en' (language code), use region mapping
+            if (country === 'en' && region) {
+              const mappedCountry = regionToCountry[region];
+              if (mappedCountry) {
+                console.log(`[DEBUG] Mapped region '${region}' to country: ${mappedCountry}`);
+                country = mappedCountry;
+              } else {
+                console.log(`[DEBUG] No mapping found for region: ${region}`);
+              }
+            }
           } else {
             console.log(`[DEBUG] dataLayer not found or not an array`);
           }
