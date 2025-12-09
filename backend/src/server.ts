@@ -30,7 +30,45 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
 });
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://maps.googleapis.com",
+          "https://maps.gstatic.com",
+          "https://pagead2.googlesyndication.com",
+        ],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://fonts.googleapis.com",
+        ],
+        fontSrc: [
+          "'self'",
+          "https://fonts.gstatic.com",
+        ],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https:",
+          "https://maps.googleapis.com",
+          "https://maps.gstatic.com",
+        ],
+        connectSrc: [
+          "'self'",
+          "https://maps.googleapis.com",
+        ],
+        frameSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  })
+);
 app.use(limiter);
 
 // Parse FRONTEND_URL - can be comma-separated list of origins
