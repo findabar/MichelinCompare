@@ -13,7 +13,7 @@ let geocodingProgress = {
   total: 0,
   successful: 0,
   failed: 0,
-  errors: [] as Array<{ restaurantId: number; name: string; error: string }>,
+  errors: [] as Array<{ restaurantId: string; name: string; error: string }>,
 };
 
 /**
@@ -155,7 +155,7 @@ router.get('/geocoding-status', adminAuth, async (req, res) => {
  */
 async function processGeocoding(
   restaurants: Array<{
-    id: number;
+    id: string;
     name: string;
     address: string | null;
     city: string;
@@ -166,7 +166,7 @@ async function processGeocoding(
 ) {
   console.log(`🚀 Starting geocoding for ${restaurants.length} restaurants`);
 
-  const addressesToGeocode = restaurants.map((r) => ({
+  const addressesToGeocode: Array<{ id: string; address: string; name: string }> = restaurants.map((r) => ({
     id: r.id,
     address: `${r.address || ''}, ${r.city}, ${r.country}`.trim(),
     name: r.name,

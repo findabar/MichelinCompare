@@ -76,14 +76,14 @@ class GeocodingService {
    * Geocode multiple addresses with rate limiting
    */
   async geocodeBatch(
-    addresses: Array<{ id: number; address: string }>,
-    onProgress?: (processed: number, total: number, current: { id: number; address: string }) => void
+    addresses: Array<{ id: string; address: string }>,
+    onProgress?: (processed: number, total: number, current: { id: string; address: string }) => void
   ): Promise<{
-    successful: Array<{ id: number; result: GeocodeResult }>;
-    failed: Array<{ id: number; address: string; error: string }>;
+    successful: Array<{ id: string; result: GeocodeResult }>;
+    failed: Array<{ id: string; address: string; error: string }>;
   }> {
-    const successful: Array<{ id: number; result: GeocodeResult }> = [];
-    const failed: Array<{ id: number; address: string; error: string }> = [];
+    const successful: Array<{ id: string; result: GeocodeResult }> = [];
+    const failed: Array<{ id: string; address: string; error: string }> = [];
 
     for (let i = 0; i < addresses.length; i++) {
       const item = addresses[i];
