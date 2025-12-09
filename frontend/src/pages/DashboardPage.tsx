@@ -7,6 +7,7 @@ import { Star, Trophy, Map, Calendar, Trash2, Eye, BarChart3, MessageCircle, X }
 import { userAPI, visitAPI, feedbackAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import RestaurantMap from '../components/RestaurantMap';
 
 interface FeedbackForm {
   feedbackType: string;
@@ -128,6 +129,22 @@ const DashboardPage = () => {
           <div className="text-gray-600">Avg Stars/Visit</div>
         </div>
       </div>
+
+      {/* Restaurant Map */}
+      {visits?.data?.visits && (
+        <RestaurantMap
+          restaurants={visits.data.visits.map((visit: any) => ({
+            id: visit.id,
+            name: visit.restaurant.name,
+            city: visit.restaurant.city,
+            country: visit.restaurant.country,
+            latitude: visit.restaurant.latitude,
+            longitude: visit.restaurant.longitude,
+            michelinStars: visit.restaurant.michelinStars,
+          }))}
+          apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
