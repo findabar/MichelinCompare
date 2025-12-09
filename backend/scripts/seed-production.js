@@ -49,47 +49,46 @@ async function seedProductionDatabase() {
             }
           });
 
+          const restaurantData = {
+            name: rawData.name,
+            city: rawData.city,
+            country: rawData.country,
+            cuisineType: rawData.cuisineType,
+            michelinStars: rawData.michelinStars,
+            distinction: rawData.distinction,
+            yearAwarded: rawData.yearAwarded || 2024,
+            address: rawData.address || '',
+            latitude: rawData.latitude,
+            longitude: rawData.longitude,
+            description: rawData.description,
+            imageUrl: rawData.imageUrl,
+            phone: rawData.phone,
+            website: rawData.website,
+            michelinUrl: rawData.michelinUrl
+          };
+
           if (existing) {
-            console.log(`⏭️  Skipping existing: ${rawData.name}, ${rawData.city}`);
-
-            // Mark as processed even if skipped
-            await prisma.rawData.update({
-              where: { id: rawData.id },
-              data: { processed: true }
+            // Update existing restaurant with latest data
+            await prisma.restaurant.update({
+              where: { id: existing.id },
+              data: restaurantData
             });
-
+            console.log(`🔄 Updated: ${rawData.name}, ${rawData.city} (${rawData.michelinStars}⭐)`);
             skippedCount++;
-            continue;
+          } else {
+            // Create new restaurant
+            await prisma.restaurant.create({
+              data: restaurantData
+            });
+            console.log(`✅ Added: ${rawData.name}, ${rawData.city} (${rawData.michelinStars}⭐)`);
+            seededCount++;
           }
 
-          // Create new restaurant
-          await prisma.restaurant.create({
-            data: {
-              name: rawData.name,
-              city: rawData.city,
-              country: rawData.country,
-              cuisineType: rawData.cuisineType,
-              michelinStars: rawData.michelinStars,
-              yearAwarded: rawData.yearAwarded || 2024,
-              address: rawData.address || '',
-              latitude: rawData.latitude,
-              longitude: rawData.longitude,
-              description: rawData.description,
-              imageUrl: rawData.imageUrl,
-              phone: rawData.phone,
-              website: rawData.website,
-              michelinUrl: rawData.michelinUrl
-            }
-          });
-
-          // Mark as processed after successful creation
+          // Mark as processed after successful creation/update
           await prisma.rawData.update({
             where: { id: rawData.id },
             data: { processed: true }
           });
-
-          seededCount++;
-          console.log(`✅ Added: ${rawData.name}, ${rawData.city} (${rawData.michelinStars}⭐)`);
 
         } catch (error) {
           console.error(`❌ Error seeding ${rawData.name}:`, error.message);
@@ -102,8 +101,8 @@ async function seedProductionDatabase() {
 
     console.log('\n🎉 Seeding completed!');
     console.log(`📊 Summary:`);
-    console.log(`   ✅ Seeded: ${seededCount} restaurants`);
-    console.log(`   ⏭️  Skipped: ${skippedCount} existing restaurants`);
+    console.log(`   ✅ Added: ${seededCount} new restaurants`);
+    console.log(`   🔄 Updated: ${skippedCount} existing restaurants`);
     console.log(`   📋 Total processed: ${restaurantsData.length} restaurants`);
 
     // Show breakdown by country and stars
