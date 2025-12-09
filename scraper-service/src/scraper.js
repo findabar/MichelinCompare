@@ -433,26 +433,25 @@ class MichelinScraper {
 
         // Extract website URL from "Visit Website" button
         let website = null;
+        let websiteDebug = [];
         try {
-          console.log(`[DEBUG] Looking for website link...`);
-
           // Method 1: Try data-event attribute first (most specific)
           const websiteButton = document.querySelector('a[data-event="CTA_website"]');
           if (websiteButton) {
             website = websiteButton.getAttribute('href');
-            console.log(`[DEBUG] Found website via data-event: ${website}`);
+            websiteDebug.push(`Found via data-event: ${website}`);
           }
 
           // Method 2: Search all links with js-dtm-link class
           if (!website) {
             const websiteLinks = document.querySelectorAll('a.js-dtm-link');
-            console.log(`[DEBUG] Found ${websiteLinks.length} js-dtm-link elements`);
+            websiteDebug.push(`Found ${websiteLinks.length} js-dtm-link elements`);
             for (const link of websiteLinks) {
               const linkText = link.textContent?.trim() || '';
-              console.log(`[DEBUG] Link text: "${linkText}"`);
+              const href = link.getAttribute('href') || '';
+              websiteDebug.push(`Link: "${linkText}" -> ${href}`);
               if (linkText.includes('Visit Website') || linkText.includes('Website')) {
-                website = link.getAttribute('href');
-                console.log(`[DEBUG] Found website link via text search: ${website}`);
+                website = href;
                 break;
               }
             }
@@ -461,33 +460,34 @@ class MichelinScraper {
           // Method 3: Try looking for external links (not michelin.com)
           if (!website) {
             const allLinks = document.querySelectorAll('a[href^="http"]');
-            console.log(`[DEBUG] Found ${allLinks.length} external links`);
+            websiteDebug.push(`Found ${allLinks.length} external http links`);
             for (const link of allLinks) {
               const href = link.getAttribute('href');
               if (href && !href.includes('michelin.com') && !href.includes('google.com')) {
                 const linkText = link.textContent?.trim() || '';
-                console.log(`[DEBUG] External link: ${href} (text: "${linkText}")`);
-                // This might be the website
+                websiteDebug.push(`External: "${linkText}" -> ${href}`);
               }
             }
           }
 
           if (!website) {
-            console.log(`[DEBUG] No website link found`);
+            websiteDebug.push('No website link found');
           }
         } catch (e) {
-          console.error('Error extracting website:', e);
+          websiteDebug.push(`Error: ${e.message}`);
         }
 
         // Extract phone number from tel: link
         let phone = null;
+        let phoneDebug = [];
         try {
           const phoneLinks = document.querySelectorAll('a[href^="tel:"]');
+          phoneDebug.push(`Found ${phoneLinks.length} tel: links`);
           if (phoneLinks.length > 0) {
             // Get the href attribute and remove 'tel:' prefix
             const telHref = phoneLinks[0].getAttribute('href');
             phone = telHref.replace('tel:', '').trim();
-            console.log(`[DEBUG] Found phone number: ${phone}`);
+            phoneDebug.push(`Extracted: ${phone}`);
           }
 
           if (!phone) {
@@ -497,12 +497,16 @@ class MichelinScraper {
               const telHref = phoneButton.getAttribute('href');
               if (telHref) {
                 phone = telHref.replace('tel:', '').trim();
-                console.log(`[DEBUG] Found phone number via data-event: ${phone}`);
+                phoneDebug.push(`Found via data-event: ${phone}`);
               }
             }
           }
+
+          if (!phone) {
+            phoneDebug.push('No phone link found');
+          }
         } catch (e) {
-          console.error('Error extracting phone:', e);
+          phoneDebug.push(`Error: ${e.message}`);
         }
 
         return {
@@ -511,9 +515,21 @@ class MichelinScraper {
           country,
           cuisine,
           website,
-          phone
+          phone,
+          websiteDebug,
+          phoneDebug
         };
       }, url);
+
+      // Log debug info from browser context
+      if (details?.websiteDebug) {
+        console.log(`🔍 Website extraction debug for ${url}:`);
+        details.websiteDebug.forEach(msg => console.log(`   ${msg}`));
+      }
+      if (details?.phoneDebug) {
+        console.log(`📞 Phone extraction debug for ${url}:`);
+        details.phoneDebug.forEach(msg => console.log(`   ${msg}`));
+      }
 
       await page.close();
       return details;
