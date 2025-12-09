@@ -307,7 +307,9 @@ class MichelinScraper {
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      const details = await page.evaluate(() => {
+      const details = await page.evaluate((pageUrl) => {
+        console.log(`[DEBUG] Scraping details from: ${pageUrl}`);
+
         // Country name translation map
         const countryTranslations = {
           'España': 'Spain',
@@ -358,17 +360,29 @@ class MichelinScraper {
         let country = null;
 
         try {
+          console.log(`[DEBUG] Checking dataLayer...`);
           if (window.dataLayer && Array.isArray(window.dataLayer)) {
-            for (const layer of window.dataLayer) {
+            console.log(`[DEBUG] dataLayer exists with ${window.dataLayer.length} entries`);
+            for (let i = 0; i < window.dataLayer.length; i++) {
+              const layer = window.dataLayer[i];
+              console.log(`[DEBUG] Layer ${i}:`, {
+                hasCity: !!layer.city,
+                hasCountry: !!layer.country,
+                city: layer.city,
+                country: layer.country
+              });
               if (layer.city) city = layer.city;
               if (layer.country) {
                 country = countryTranslations[layer.country] || layer.country;
               }
               if (city && country) break;
             }
+            console.log(`[DEBUG] Final dataLayer extraction: city=${city}, country=${country}`);
+          } else {
+            console.log(`[DEBUG] dataLayer not found or not an array`);
           }
         } catch (e) {
-          console.error('Error reading dataLayer:', e);
+          console.error('[DEBUG] Error reading dataLayer:', e);
         }
 
         // Try multiple selectors for description
@@ -423,7 +437,7 @@ class MichelinScraper {
           country,
           cuisine
         };
-      });
+      }, url);
 
       await page.close();
       return details;
@@ -586,6 +600,7 @@ class MichelinScraper {
               const firstElement = footerScoreElements[0]?.textContent?.trim();
               if (firstElement) {
                 locationText = firstElement;
+                console.log(`[CARD ${index + 1}] Location text found: "${locationText}"`);
               }
 
               // Second element usually contains price + cuisine (e.g., "฿฿฿฿ · Thai Cuisine")
