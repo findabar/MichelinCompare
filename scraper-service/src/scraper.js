@@ -434,23 +434,46 @@ class MichelinScraper {
         // Extract website URL from "Visit Website" button
         let website = null;
         try {
-          const websiteLinks = document.querySelectorAll('a.js-dtm-link');
-          for (const link of websiteLinks) {
-            const linkText = link.textContent?.trim() || '';
-            if (linkText.includes('Visit Website')) {
-              website = link.getAttribute('href');
-              console.log(`[DEBUG] Found website link: ${website}`);
-              break;
+          console.log(`[DEBUG] Looking for website link...`);
+
+          // Method 1: Try data-event attribute first (most specific)
+          const websiteButton = document.querySelector('a[data-event="CTA_website"]');
+          if (websiteButton) {
+            website = websiteButton.getAttribute('href');
+            console.log(`[DEBUG] Found website via data-event: ${website}`);
+          }
+
+          // Method 2: Search all links with js-dtm-link class
+          if (!website) {
+            const websiteLinks = document.querySelectorAll('a.js-dtm-link');
+            console.log(`[DEBUG] Found ${websiteLinks.length} js-dtm-link elements`);
+            for (const link of websiteLinks) {
+              const linkText = link.textContent?.trim() || '';
+              console.log(`[DEBUG] Link text: "${linkText}"`);
+              if (linkText.includes('Visit Website') || linkText.includes('Website')) {
+                website = link.getAttribute('href');
+                console.log(`[DEBUG] Found website link via text search: ${website}`);
+                break;
+              }
+            }
+          }
+
+          // Method 3: Try looking for external links (not michelin.com)
+          if (!website) {
+            const allLinks = document.querySelectorAll('a[href^="http"]');
+            console.log(`[DEBUG] Found ${allLinks.length} external links`);
+            for (const link of allLinks) {
+              const href = link.getAttribute('href');
+              if (href && !href.includes('michelin.com') && !href.includes('google.com')) {
+                const linkText = link.textContent?.trim() || '';
+                console.log(`[DEBUG] External link: ${href} (text: "${linkText}")`);
+                // This might be the website
+              }
             }
           }
 
           if (!website) {
-            // Fallback: try to find by data-event attribute
-            const websiteButton = document.querySelector('a[data-event="CTA_website"]');
-            if (websiteButton) {
-              website = websiteButton.getAttribute('href');
-              console.log(`[DEBUG] Found website link via data-event: ${website}`);
-            }
+            console.log(`[DEBUG] No website link found`);
           }
         } catch (e) {
           console.error('Error extracting website:', e);
