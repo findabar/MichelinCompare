@@ -703,6 +703,7 @@ class MichelinScraper {
                 country,
                 cuisineType: cuisine,
                 michelinStars: stars,
+                distinction: `${stars} MICHELIN Star${stars > 1 ? 's' : ''}`,
                 yearAwarded: new Date().getFullYear(),
                 address: fullAddress,
                 latitude: null,
