@@ -431,6 +431,32 @@ class MichelinScraper {
           console.error('Error extracting cuisine:', e);
         }
 
+        // Extract address from data-sheet__block--text (first block usually contains the address)
+        let address = null;
+        try {
+          const dataSheetBlocks = document.querySelectorAll('.data-sheet__block .data-sheet__block--text');
+
+          for (const block of dataSheetBlocks) {
+            const text = block.textContent?.trim() || '';
+            // Address block typically contains street info and postal/zip code
+            // Skip blocks that are just price/cuisine (contain £$€¥₩ or have · separator)
+            if (text && !text.match(/^[£$€¥₩]+/) && !text.includes('·') && !text.includes('•')) {
+              // Check if it looks like an address (contains numbers and/or common address indicators)
+              if (text.match(/\d/) || text.match(/street|road|avenue|boulevard|lane|drive|way|square|place|court/i)) {
+                address = text;
+                console.log(`[DEBUG] Found address: ${address}`);
+                break;
+              }
+            }
+          }
+
+          if (!address) {
+            console.log('[DEBUG] No address found in data-sheet blocks');
+          }
+        } catch (e) {
+          console.error('Error extracting address:', e);
+        }
+
         // Extract website URL from "Visit Website" button
         let website = null;
         let websiteDebug = [];
@@ -514,6 +540,7 @@ class MichelinScraper {
           city,
           country,
           cuisine,
+          address,
           website,
           phone,
           websiteDebug,
@@ -837,6 +864,7 @@ class MichelinScraper {
             city: details?.city || 'null',
             country: details?.country || 'null',
             cuisine: details?.cuisine || 'null',
+            address: details?.address || 'null',
             website: details?.website || 'null',
             phone: details?.phone || 'null',
             description: details?.description ? `${details.description.substring(0, 50)}...` : 'null'
@@ -867,6 +895,12 @@ class MichelinScraper {
             if (details.cuisine) {
               restaurant.cuisineType = details.cuisine;
               console.log(`✅ Updated cuisine from data-sheet: ${details.cuisine}`);
+            }
+
+            // Update address from data-sheet block
+            if (details.address) {
+              restaurant.address = details.address;
+              console.log(`✅ Updated address from data-sheet: ${details.address}`);
             }
 
             // Update website URL from "Visit Website" button
