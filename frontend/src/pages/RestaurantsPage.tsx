@@ -74,8 +74,10 @@ const RestaurantsPage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Michelin-Starred Restaurants</h1>
         <button
+          type="button"
           onClick={() => setShowFilters(!showFilters)}
           className="btn-secondary flex items-center space-x-2"
+          aria-label="Toggle filters"
         >
           <Filter className="h-4 w-4" />
           <span>Filters</span>
@@ -98,13 +100,16 @@ const RestaurantsPage = () => {
         {showFilters && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="star-filter" className="block text-sm font-medium text-gray-700 mb-1">
                 Michelin Stars
               </label>
               <select
+                id="star-filter"
+                name="michelinStars"
                 value={filters.michelinStars || ''}
                 onChange={(e) => updateFilter('michelinStars', e.target.value ? parseInt(e.target.value) : undefined)}
                 className="input-field"
+                aria-label="Filter by Michelin stars"
               >
                 <option value="">All Stars</option>
                 <option value="1">1 Star</option>
@@ -114,13 +119,16 @@ const RestaurantsPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="country-filter" className="block text-sm font-medium text-gray-700 mb-1">
                 Country
               </label>
               <select
+                id="country-filter"
+                name="country"
                 value={filters.country}
                 onChange={(e) => updateFilter('country', e.target.value)}
                 className="input-field"
+                aria-label="Filter by country"
               >
                 <option value="">All Countries</option>
                 {filterOptions?.data.countries.map((country) => (
@@ -132,13 +140,16 @@ const RestaurantsPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="city-filter" className="block text-sm font-medium text-gray-700 mb-1">
                 City
               </label>
               <select
+                id="city-filter"
+                name="city"
                 value={filters.city}
                 onChange={(e) => updateFilter('city', e.target.value)}
                 className="input-field"
+                aria-label="Filter by city"
               >
                 <option value="">All Cities</option>
                 {filterOptions?.data.cities
@@ -152,13 +163,16 @@ const RestaurantsPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="cuisine-filter" className="block text-sm font-medium text-gray-700 mb-1">
                 Cuisine Type
               </label>
               <select
+                id="cuisine-filter"
+                name="cuisineType"
                 value={filters.cuisineType}
                 onChange={(e) => updateFilter('cuisineType', e.target.value)}
                 className="input-field"
+                aria-label="Filter by cuisine type"
               >
                 <option value="">All Cuisines</option>
                 {filterOptions?.data.cuisineTypes.map((cuisine) => (
@@ -171,6 +185,7 @@ const RestaurantsPage = () => {
 
             <div className="lg:col-span-4">
               <button
+                type="button"
                 onClick={clearFilters}
                 className="btn-secondary text-sm"
               >
@@ -227,9 +242,11 @@ const RestaurantsPage = () => {
           {restaurants.data.pagination.total > 1 && (
             <div className="flex justify-center space-x-2">
               <button
+                type="button"
                 onClick={() => changePage(filters.page! - 1)}
                 disabled={filters.page === 1}
                 className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Previous page"
               >
                 Previous
               </button>
@@ -239,12 +256,15 @@ const RestaurantsPage = () => {
                 return (
                   <button
                     key={page}
+                    type="button"
                     onClick={() => changePage(page)}
                     className={`px-3 py-2 rounded-lg ${
                       filters.page === page
                         ? 'bg-primary-600 text-white'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
+                    aria-label={`Page ${page}`}
+                    aria-current={filters.page === page ? 'page' : undefined}
                   >
                     {page}
                   </button>
@@ -252,9 +272,11 @@ const RestaurantsPage = () => {
               })}
 
               <button
+                type="button"
                 onClick={() => changePage(filters.page! + 1)}
                 disabled={filters.page === restaurants.data.pagination.total}
                 className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Next page"
               >
                 Next
               </button>
