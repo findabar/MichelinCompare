@@ -39,9 +39,9 @@ router.post('/geocode-restaurants', adminAuth, async (req, res) => {
 
     // Build query based on filter
     let whereClause: any = {
-      address: {
-        not: null,
-      },
+      NOT: {
+        address: null
+      }
     };
 
     // If not forcing, only select restaurants without coordinates
