@@ -39,15 +39,16 @@ router.post('/geocode-restaurants', adminAuth, async (req, res) => {
 
     // Build query based on filter
     let whereClause: any = {
-      NOT: [
-        { address: null },
-        { address: '' }
+      AND: [
+        { NOT: { address: '' } }
       ]
     };
 
     // If not forcing, only select restaurants without coordinates
     if (!force) {
-      whereClause.OR = [{ latitude: null }, { longitude: null }];
+      whereClause.AND.push({
+        OR: [{ latitude: null }, { longitude: null }]
+      });
     }
 
     // Apply filter-specific conditions
@@ -57,24 +58,26 @@ router.post('/geocode-restaurants', adminAuth, async (req, res) => {
           error: 'starLevel is required and must be 1, 2, or 3 when filter is "stars"',
         });
       }
-      whereClause.michelinStars = starLevel;
+      whereClause.AND.push({ michelinStars: starLevel });
     } else if (filter === 'name') {
       if (!name || name.trim().length === 0) {
         return res.status(400).json({
           error: 'name is required when filter is "name"',
         });
       }
-      whereClause.name = {
-        contains: name,
-        mode: 'insensitive' as const,
-      };
+      whereClause.AND.push({
+        name: {
+          contains: name,
+          mode: 'insensitive' as const,
+        }
+      });
     } else if (filter === 'single') {
       if (!restaurantId) {
         return res.status(400).json({
           error: 'restaurantId is required when filter is "single"',
         });
       }
-      whereClause.id = restaurantId;
+      whereClause.AND.push({ id: restaurantId });
     }
 
     // Fetch restaurants to geocode
