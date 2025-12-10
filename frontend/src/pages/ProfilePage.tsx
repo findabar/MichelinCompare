@@ -4,6 +4,7 @@ import { Star, Map, Calendar, Trophy, User as UserIcon } from 'lucide-react';
 import { userAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getStarCount } from '../utils/restaurant';
 
 const ProfilePage = () => {
   const { username } = useParams<{ username: string }>();
@@ -130,7 +131,7 @@ const ProfilePage = () => {
                       </Link>
                       <div className="flex items-center space-x-2 mt-1">
                         <div className="flex text-yellow-400">
-                          {[...Array(visit.restaurant.michelinStars)].map((_, i) => (
+                          {[...Array(getStarCount(visit.restaurant))].map((_, i) => (
                             <Star key={i} className="h-3 w-3 fill-current" />
                           ))}
                         </div>

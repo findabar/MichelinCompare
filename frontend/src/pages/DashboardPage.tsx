@@ -8,6 +8,7 @@ import { userAPI, visitAPI, feedbackAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import RestaurantMap from '../components/RestaurantMap';
+import { getStarCount } from '../utils/restaurant';
 
 interface FeedbackForm {
   feedbackType: string;
@@ -141,6 +142,7 @@ const DashboardPage = () => {
             latitude: visit.restaurant.latitude,
             longitude: visit.restaurant.longitude,
             michelinStars: visit.restaurant.michelinStars,
+            distinction: visit.restaurant.distinction,
           }))}
           apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}
         />
@@ -244,7 +246,7 @@ const DashboardPage = () => {
                           {visit.restaurant.name}
                         </Link>
                         <div className="flex text-yellow-400">
-                          {[...Array(visit.restaurant.michelinStars)].map((_, i) => (
+                          {[...Array(getStarCount(visit.restaurant))].map((_, i) => (
                             <Star key={i} className="h-4 w-4 fill-current" />
                           ))}
                         </div>

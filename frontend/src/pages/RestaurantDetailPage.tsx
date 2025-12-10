@@ -7,6 +7,7 @@ import { Star, MapPin, User, Plus, Trash2, Edit3, Save, X, RefreshCw } from 'luc
 import { restaurantAPI, visitAPI, scraperAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getStarCount } from '../utils/restaurant';
 
 interface VisitForm {
   dateVisited: string;
@@ -258,12 +259,12 @@ const RestaurantDetailPage = () => {
             {!isEditing ? (
               <div className="flex items-center space-x-2">
                 <div className="flex text-yellow-400">
-                  {[...Array(restaurantData.michelinStars)].map((_, i) => (
+                  {[...Array(getStarCount(restaurantData))].map((_, i) => (
                     <Star key={i} className="h-6 w-6 fill-current" />
                   ))}
                 </div>
                 <span className="text-lg font-semibold text-gray-900">
-                  {restaurantData.michelinStars} Star{restaurantData.michelinStars !== 1 ? 's' : ''}
+                  {getStarCount(restaurantData)} Star{getStarCount(restaurantData) !== 1 ? 's' : ''}
                 </span>
               </div>
             ) : (
@@ -424,7 +425,7 @@ const RestaurantDetailPage = () => {
                 <div>
                   <p className="font-medium text-gray-900">Haven't visited yet?</p>
                   <p className="text-sm text-gray-600">
-                    Mark as visited to earn {restaurantData.michelinStars} point{restaurantData.michelinStars !== 1 ? 's' : ''}!
+                    Mark as visited to earn {getStarCount(restaurantData)} point{getStarCount(restaurantData) !== 1 ? 's' : ''}!
                   </p>
                 </div>
                 <button

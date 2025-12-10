@@ -1,4 +1,5 @@
 import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
+import { getStarCount } from '../utils/restaurant';
 
 interface Restaurant {
   id: number;
@@ -8,6 +9,7 @@ interface Restaurant {
   latitude: number | null;
   longitude: number | null;
   michelinStars: number;
+  distinction?: string | null;
 }
 
 interface RestaurantMapProps {
@@ -94,10 +96,10 @@ const RestaurantMap = ({ restaurants, apiKey }: RestaurantMapProps) => {
                   lat: restaurant.latitude!,
                   lng: restaurant.longitude!,
                 }}
-                title={`${restaurant.name} - ${restaurant.michelinStars} ⭐`}
+                title={`${restaurant.name} - ${getStarCount(restaurant)} ⭐`}
               >
                 <Pin
-                  background={getPinColor(restaurant.michelinStars)}
+                  background={getPinColor(getStarCount(restaurant))}
                   borderColor="#1F2937"
                   glyphColor="#FFFFFF"
                 />

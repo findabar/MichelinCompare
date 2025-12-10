@@ -3,6 +3,7 @@ import { Star, Trophy, Map, Users } from 'lucide-react';
 import { useQuery } from 'react-query';
 import { leaderboardAPI, restaurantAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { getStarCount } from '../utils/restaurant';
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -119,7 +120,7 @@ const HomePage = () => {
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-lg font-semibold">{restaurant.name}</h3>
                   <div className="flex text-yellow-400">
-                    {[...Array(restaurant.michelinStars)].map((_, i) => (
+                    {[...Array(getStarCount(restaurant))].map((_, i) => (
                       <Star key={i} className="h-4 w-4 fill-current" />
                     ))}
                   </div>

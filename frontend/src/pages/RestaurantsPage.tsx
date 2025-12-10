@@ -5,6 +5,7 @@ import { Star, MapPin, Search, Filter } from 'lucide-react';
 import { restaurantAPI } from '../services/api';
 import { RestaurantFilters } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getStarCount } from '../utils/restaurant';
 
 const RestaurantsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -199,7 +200,7 @@ const RestaurantsPage = () => {
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="text-lg font-semibold line-clamp-2">{restaurant.name}</h3>
                   <div className="flex text-yellow-400 ml-2">
-                    {[...Array(restaurant.michelinStars)].map((_, i) => (
+                    {[...Array(getStarCount(restaurant))].map((_, i) => (
                       <Star key={i} className="h-4 w-4 fill-current" />
                     ))}
                   </div>

@@ -15,6 +15,7 @@ export interface Restaurant {
   country: string;
   cuisineType: string;
   michelinStars: number;
+  distinction?: string | null;
   yearAwarded: number;
   address: string;
   latitude?: number;
