@@ -2,9 +2,11 @@ name: Claude Code Issue Handler
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened, edited, assigned]
   issue_comment:
     types: [created, edited]
+  pull_request_review_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -12,247 +14,28 @@ permissions:
   pull-requests: write
 
 jobs:
-  check-trigger:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
-      issue_number: ${{ steps.check.outputs.issue_number }}
-      issue_title: ${{ steps.check.outputs.issue_title }}
-      issue_body: ${{ steps.check.outputs.issue_body }}
-    steps:
-      - name: Check if @claude mentioned
-        id: check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issue = context.payload.issue;
-            const comment = context.payload.comment;
-
-            // Check if @claude is mentioned in issue or comment
-            const issueBody = issue?.body || '';
-            const issueTitle = issue?.title || '';
-            const commentBody = comment?.body || '';
-
-            const shouldRun = issueBody.includes('@claude') ||
-                            issueTitle.includes('@claude') ||
-                            commentBody.includes('@claude');
-
-            core.setOutput('should_run', shouldRun);
-            core.setOutput('issue_number', issue?.number || '');
-            core.setOutput('issue_title', issue?.title || '');
-            core.setOutput('issue_body', issueBody);
-
-            if (shouldRun) {
-              console.log('✅ @claude mentioned - proceeding with workflow');
-            } else {
-              console.log('⏭️  @claude not mentioned - skipping workflow');
-            }
-
-  claude-fix:
-    needs: check-trigger
-    if: needs.check-trigger.outputs.should_run == 'true'
+  claude:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          npm install
-          cd backend && npm install
-          cd ../frontend && npm install
-          cd ../scraper-service && npm install
-
-      - name: Set up PostgreSQL
-        uses: ikalnytskyi/action-setup-postgres@v6
-        with:
-          username: postgres
-          password: postgres
-          database: michelin_star_hunter_test
-          port: 5432
-        id: postgres
-
-      - name: Create branch name
-        id: branch
-        run: |
-          ISSUE_NUM="${{ needs.check-trigger.outputs.issue_number }}"
-          BRANCH_NAME="claude/issue-${ISSUE_NUM}-$(date +%s)"
-          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
-
-      - name: Create new branch
-        run: |
-          git config user.name "Claude Code Bot"
-          git config user.email "claude-code-bot@github-actions"
-          git checkout -b ${{ steps.branch.outputs.branch_name }}
-
-      - name: Add issue context comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ needs.check-trigger.outputs.issue_number }},
-              body: '🤖 Claude Code is analyzing this issue and creating a plan...\n\nBranch: `${{ steps.branch.outputs.branch_name }}`'
-            });
-
-      - name: Run Claude Code to analyze and fix
+      - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: |
-            You are helping fix a GitHub issue in the MichellinCompare project.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --system-prompt "You are helping fix issues in the MichellinCompare project.
 
-            **Issue #${{ needs.check-trigger.outputs.issue_number }}: ${{ needs.check-trigger.outputs.issue_title }}**
+            Key guidelines:
+            - Read CLAUDE.md for project architecture and navigation
+            - Follow existing TypeScript/JavaScript patterns
+            - Add appropriate error handling
+            - Make sure tests pass before completing
+            - Use Prisma for all database operations
+            - Follow the API response format: { success: true/false, data/error }
 
-            ${{ needs.check-trigger.outputs.issue_body }}
-
-            Please:
+            When implementing fixes:
             1. Analyze the issue thoroughly
-            2. Create a detailed implementation plan
-            3. Implement the fix following the project's existing patterns (check CLAUDE.md for guidance)
-            4. Ensure all changes follow TypeScript/JavaScript best practices
-            5. Make sure any new code includes appropriate error handling
-            6. DO NOT run tests - they will be run separately
-
-            After implementation, provide a summary of:
-            - What was changed
-            - Which files were modified
-            - Any important considerations for the reviewer
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up backend database for tests
-        run: |
-          cd backend
-          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/michelin_star_hunter_test?schema=public"
-          npx prisma generate
-          npx prisma db push --force-reset
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/michelin_star_hunter_test?schema=public
-
-      - name: Run backend tests
-        id: backend_tests
-        run: |
-          cd backend
-          npm test -- --coverage --passWithNoTests
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/michelin_star_hunter_test?schema=public
-          JWT_SECRET: test-secret-key-for-github-actions
-          NODE_ENV: test
-        continue-on-error: true
-
-      - name: Run frontend tests
-        id: frontend_tests
-        run: |
-          cd frontend
-          npm test -- --passWithNoTests || echo "No frontend tests or tests failed"
-        continue-on-error: true
-
-      - name: Check test results
-        id: test_results
-        run: |
-          if [ "${{ steps.backend_tests.outcome }}" == "success" ] || [ "${{ steps.backend_tests.outcome }}" == "skipped" ]; then
-            echo "tests_passed=true" >> $GITHUB_OUTPUT
-            echo "✅ All tests passed"
-          else
-            echo "tests_passed=false" >> $GITHUB_OUTPUT
-            echo "❌ Tests failed"
-            exit 1
-          fi
-
-      - name: Commit changes
-        run: |
-          git add .
-          git diff --staged --quiet || git commit -m "fix: resolve issue #${{ needs.check-trigger.outputs.issue_number }}
-
-          Implemented by Claude Code
-
-          Co-authored-by: Claude Code <claude-code@anthropic.com>"
-
-      - name: Push branch
-        run: |
-          git push origin ${{ steps.branch.outputs.branch_name }}
-
-      - name: Create Pull Request
-        id: create_pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pr } = await github.rest.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: 'Fix: Issue #${{ needs.check-trigger.outputs.issue_number }} - ${{ needs.check-trigger.outputs.issue_title }}',
-              head: '${{ steps.branch.outputs.branch_name }}',
-              base: 'main',
-              body: `## 🤖 Automated Fix by Claude Code
-
-            This PR addresses issue #${{ needs.check-trigger.outputs.issue_number }}
-
-            ### Original Issue
-            ${{ needs.check-trigger.outputs.issue_title }}
-
-            ### Changes Made
-            Claude Code has analyzed the issue and implemented a fix. Please review the changes carefully.
-
-            ### Test Results
-            - ✅ Backend tests: ${{ steps.backend_tests.outcome }}
-            - ✅ Frontend tests: ${{ steps.frontend_tests.outcome }}
-
-            ### Review Checklist
-            - [ ] Code changes are correct and follow project patterns
-            - [ ] No security issues introduced
-            - [ ] Tests are passing
-            - [ ] Documentation updated if needed
-            - [ ] Ready to merge
-
-            ---
-
-            🔗 Closes #${{ needs.check-trigger.outputs.issue_number }}
-
-            Generated with [Claude Code](https://github.com/anthropics/claude-code-action)`
-            });
-
-            core.setOutput('pr_number', pr.number);
-            core.setOutput('pr_url', pr.html_url);
-
-            // Link PR to issue
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ needs.check-trigger.outputs.issue_number }},
-              body: `✅ Claude Code has created a fix!\n\n📋 Pull Request: #${pr.number}\n🔗 ${pr.html_url}\n\n✅ All tests passed. Please review and merge if the changes look good.`
-            });
-
-      - name: Add labels to PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ steps.create_pr.outputs.pr_number }},
-              labels: ['automated-fix', 'claude-code', 'needs-review']
-            });
-
-  handle-failure:
-    needs: [check-trigger, claude-fix]
-    if: failure() && needs.check-trigger.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Comment on failure
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ needs.check-trigger.outputs.issue_number }},
-              body: '❌ Claude Code encountered an error while trying to fix this issue.\n\nPlease check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.\n\nThis may require manual intervention.'
-            });
+            2. Check CLAUDE.md for relevant file locations
+            3. Implement following existing patterns
+            4. Run tests to verify the fix works
+            5. Provide clear summary of changes"

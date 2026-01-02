@@ -4,35 +4,54 @@ This repository uses the [Claude Code GitHub Action](https://github.com/anthropi
 
 ## How It Works
 
-When you mention `@claude` in an issue (title, description, or comment), the workflow automatically:
+When you mention `@claude` in an issue or comment, Claude Code automatically:
 
-1. ✅ **Analyzes** the issue and creates an implementation plan
-2. 🔧 **Creates a branch** named `claude/issue-{number}-{timestamp}`
-3. 💻 **Implements the fix** following project patterns (guided by CLAUDE.md)
-4. 🧪 **Runs the full test suite** (backend + frontend)
-5. ✅ **Creates a Pull Request** if tests pass
-6. 💬 **Comments on the issue** with the PR link
+1. ✅ **Detects the mention** and activates
+2. 🔍 **Analyzes** the issue using project context (CLAUDE.md)
+3. 💻 **Implements the fix** following project patterns
+4. 🧪 **Runs tests** to verify the fix works
+5. 🔄 **Creates a Pull Request** with the changes
+6. 💬 **Updates the issue** with progress and results
 
 ## Setup Instructions
 
-### 1. Get an Anthropic API Key
+### Option 1: Quick Setup (Recommended)
 
+If you have Claude Code installed locally, run:
+```bash
+claude /install-github-app
+```
+
+This will guide you through the entire setup process automatically.
+
+### Option 2: Manual Setup
+
+#### 1. Get Authentication
+
+**Choose ONE of these options:**
+
+**A. Anthropic API Key (Easiest)**
 1. Go to https://console.anthropic.com/
 2. Create an account or sign in
 3. Navigate to API Keys
 4. Create a new API key
 5. Copy the key (starts with `sk-ant-`)
 
-### 2. Add the API Key to GitHub Secrets
+**B. Claude Code OAuth Token**
+1. Run `claude /install-github-app` locally
+2. Complete the OAuth flow
+3. The token will be generated for you
+
+#### 2. Add Secret to GitHub
 
 1. Go to your repository on GitHub
 2. Click **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
-4. Name: `CLAUDE_CODE_OAUTH_TOKEN`
-5. Value: Paste your API key
+4. Name: `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`)
+5. Value: Paste your token/key
 6. Click **Add secret**
 
-### 3. Enable GitHub Actions
+#### 3. Enable GitHub Actions Permissions
 
 1. Go to **Settings** → **Actions** → **General**
 2. Under **Workflow permissions**, select:
@@ -44,144 +63,240 @@ When you mention `@claude` in an issue (title, description, or comment), the wor
 
 ### Triggering the Action
 
-Simply mention `@claude` anywhere in an issue:
+Simply mention `@claude` anywhere in an issue or comment:
 
 **Example 1: In issue description**
 ```markdown
 Title: Fix restaurant filter bug
 
 Description:
-The cuisine filter isn't working properly. @claude please investigate and fix.
+The cuisine filter isn't working properly on the restaurants page.
+@claude please investigate and fix this issue.
 ```
 
 **Example 2: In a comment**
 ```markdown
-This looks like a race condition in the visit tracking.
-@claude can you fix this?
+I think this is a race condition in the visit tracking logic.
+@claude can you take a look and fix it?
 ```
 
-**Example 3: In the title**
+**Example 3: Ask questions**
 ```markdown
-Title: @claude Fix authentication redirect loop
+@claude What does the geocoding service do and how is it used?
+```
+
+**Example 4: Code review**
+```markdown
+@claude Please review this PR for security issues and best practices
 ```
 
 ### What Happens Next
 
-1. **Within seconds**: Claude Code bot comments that it's analyzing the issue
-2. **1-3 minutes**: Implementation and testing complete
-3. **Pull Request created**: Review the changes and merge if satisfied
+1. **Immediate**: Claude Code acknowledges your request
+2. **Analysis**: Reads the issue, reviews code, and creates a plan
+3. **Implementation**: Makes the necessary changes
+4. **Testing**: Runs the test suite
+5. **Pull Request**: Creates a PR with the changes for review
 
-### Example PR Created by Claude
+### Example Workflow
 
-```markdown
-## 🤖 Automated Fix by Claude Code
-
-This PR addresses issue #42
-
-### Original Issue
-Fix restaurant filter bug
-
-### Changes Made
-- Fixed race condition in RestaurantsPage.tsx filter logic
-- Added debouncing to prevent multiple simultaneous API calls
-- Updated filter state management
-
-### Test Results
-- ✅ Backend tests: success
-- ✅ Frontend tests: success
-
-### Review Checklist
-- [ ] Code changes are correct and follow project patterns
-- [ ] No security issues introduced
-- [ ] Tests are passing
-- [ ] Documentation updated if needed
-- [ ] Ready to merge
-
-🔗 Closes #42
+You create an issue:
+```
+Title: Add loading spinner to restaurant list
+@claude Please add a loading spinner component that shows while
+restaurants are being fetched in RestaurantsPage.tsx
 ```
 
-## What Claude Code Can Fix
+Claude will:
+1. Comment that it's working on the issue
+2. Create a branch
+3. Add a loading spinner component
+4. Update RestaurantsPage.tsx to use it
+5. Run tests
+6. Create a PR with the implementation
+7. Link the PR back to your issue
 
-Claude Code works best for:
+## What Claude Code Can Do
 
-- ✅ Bug fixes with clear reproduction steps
-- ✅ Feature implementations with specific requirements
-- ✅ Code refactoring with defined goals
-- ✅ Test additions
-- ✅ Documentation updates
-- ✅ TypeScript/type errors
-- ✅ Database schema changes (via Prisma migrations)
+### ✅ Great For:
+- **Bug fixes** with clear reproduction steps
+- **Feature implementations** with specific requirements
+- **Code refactoring** with defined goals
+- **Test additions** for existing code
+- **Documentation updates**
+- **TypeScript/type errors**
+- **Database schema changes** via Prisma migrations
+- **Code reviews** on pull requests
+- **Answering questions** about the codebase
 
-## What to Review
+### ⚠️ May Struggle With:
+- Issues requiring external API credentials
+- Complex architectural decisions needing human judgment
+- Production-only bugs without clear reproduction
+- Massive refactoring across many files
 
-Always review Claude's PRs for:
+## Reviewing Claude's Work
 
-- **Security**: Ensure no vulnerabilities introduced
-- **Logic**: Verify the fix actually solves the issue
-- **Tests**: Check that tests are meaningful and passing
-- **Breaking changes**: Ensure backwards compatibility
-- **Database migrations**: Review schema changes carefully
+Always review the PRs created by Claude:
 
-## Limitations
+- **✅ Correctness**: Does it actually solve the issue?
+- **✅ Security**: No vulnerabilities introduced?
+- **✅ Tests**: Are tests passing and meaningful?
+- **✅ Code Quality**: Follows project patterns?
+- **✅ Breaking Changes**: Maintains backwards compatibility?
+- **✅ Database**: Schema changes look correct?
 
-Claude Code may struggle with:
+## Customization
 
-- ❌ Issues requiring external API credentials
-- ❌ Issues needing human judgment or design decisions
-- ❌ Debugging production-only issues without logs
-- ❌ Complex architectural changes spanning many files
+### Custom Trigger Phrase
+
+If you don't want to use `@claude`, you can change the trigger in the workflow:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    trigger_phrase: "/fix"  # Use /fix instead of @claude
+```
+
+### Advanced Configuration
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    claude_args: |
+      --max-turns 15
+      --model claude-sonnet-4-5-20250929
+      --system-prompt "Custom instructions for Claude"
+```
 
 ## Troubleshooting
 
 ### Action doesn't trigger
 
-- Check that `@claude` is spelled correctly
-- Verify CLAUDE_CODE_OAUTH_TOKEN is set in repository secrets
-- Check GitHub Actions permissions are enabled
+**Check:**
+- ✓ `@claude` is spelled correctly
+- ✓ `CLAUDE_CODE_OAUTH_TOKEN` secret is set
+- ✓ GitHub Actions permissions are enabled
+- ✓ Workflow file exists at `.github/workflows/claude-issue-handler.yml`
 
-### Tests fail in CI
+**Debug:**
+- Go to **Actions** tab → Find the workflow run → Check logs
+- Look for "Run Claude Code" step to see what happened
 
-- The PR will still be created but marked as failing
-- Review the test output in the GitHub Action logs
-- You may need to manually fix the tests
+### Authentication errors
+
+**Error**: `Invalid API key` or `Unauthorized`
+
+**Fix:**
+1. Verify your secret is named exactly `CLAUDE_CODE_OAUTH_TOKEN`
+2. Make sure the token/key hasn't expired
+3. Re-generate the token if needed
 
 ### Claude makes incorrect changes
 
-- Simply close the PR and comment on the issue with more context
-- You can re-trigger by adding another comment with `@claude` and clarification
+**What to do:**
+1. Close the PR and add a comment explaining the issue
+2. Provide more context in the issue description
+3. You can re-trigger by mentioning `@claude` again with clarification
+
+### Installation failures
+
+**Error**: `Claude Code process exited with code 1`
+
+**Fix:**
+- This usually means authentication failed
+- Double-check your `CLAUDE_CODE_OAUTH_TOKEN` secret is correct
+- Try regenerating your token
+- Check the Actions logs for specific error messages
+
+### Tests fail in CI
+
+Claude may create a PR even if tests fail. Check:
+- Review the test output in PR checks
+- Fix tests manually if needed
+- Or ask `@claude` to fix the failing tests in a comment
 
 ## Cost Considerations
 
-The Claude Code action uses the Anthropic API, which has usage costs:
+The Claude Code action uses the Anthropic API:
 
-- **Typical issue fix**: ~$0.10 - $0.50 (depending on complexity)
-- **Complex refactoring**: ~$1.00 - $2.00
+- **Typical issue fix**: $0.10 - $0.50
+- **Complex refactoring**: $1.00 - $2.00
+- **Code review**: $0.05 - $0.20
 
 Monitor your usage at https://console.anthropic.com/settings/usage
 
-## Feedback and Improvements
+## Tips for Best Results
 
-If Claude Code consistently makes certain types of mistakes:
+### Write Clear Issues
 
-1. Update `CLAUDE.md` with more specific guidance
-2. Add patterns to avoid in the workflow prompt
-3. Create a skill for repetitive workflows
+Good:
+```
+@claude The restaurant filter dropdown in RestaurantsPage.tsx
+doesn't update the list when I select a cuisine type.
+
+Steps to reproduce:
+1. Go to /restaurants
+2. Select "Italian" from cuisine dropdown
+3. List doesn't filter
+
+Expected: List should show only Italian restaurants
+```
+
+Bad:
+```
+@claude fix the filter
+```
+
+### Provide Context
+
+```
+@claude There's a memory leak in the restaurant loading.
+I think it's related to the useEffect hook not cleaning up
+the subscription. Can you investigate and fix?
+```
+
+### Use CLAUDE.md
+
+Claude automatically reads the CLAUDE.md file in this repo, which contains:
+- Project architecture
+- Common commands
+- Code navigation guide
+- Troubleshooting tips
+
+Keep CLAUDE.md updated to help Claude work more effectively!
 
 ## Example Issues to Try
 
 After setup, test with a simple issue:
 
 ```markdown
-Title: Add loading spinner to restaurant list
+Title: Add a 404 page
 
-Description:
-@claude please add a loading spinner component that shows while
-restaurants are being fetched in RestaurantsPage.tsx
+@claude Please create a 404 Not Found page component in the frontend.
 
 Requirements:
+- Create a new component at frontend/src/pages/NotFoundPage.tsx
 - Use Tailwind CSS for styling
-- Show spinner while isLoading is true
-- Center it in the page
+- Include a friendly message and a link back to the home page
+- Add the route to the React Router configuration
 ```
 
-Claude should create a PR with a working implementation within a few minutes!
+## Documentation
+
+- **Claude Code Action**: https://github.com/anthropics/claude-code-action
+- **Usage Guide**: https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+- **Solutions Guide**: https://github.com/anthropics/claude-code-action/blob/main/docs/solutions.md
+
+## Feedback
+
+If Claude consistently makes certain types of mistakes:
+1. Update CLAUDE.md with more specific guidance
+2. Adjust the system prompt in the workflow file
+3. Provide more detailed issue descriptions
+
+---
+
+Need help? Check the [official docs](https://github.com/anthropics/claude-code-action) or open an issue!
