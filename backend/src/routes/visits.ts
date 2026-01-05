@@ -18,13 +18,28 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const { restaurantId, dateVisited, notes } = value;
     const userId = req.userId!;
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-    });
+    // Use transaction to prevent race conditions when creating visits
+    const result = await prisma.$transaction(async (tx) => {
+      const restaurant = await tx.restaurant.findUnique({
+        where: { id: restaurantId },
+      });
 
-    if (!restaurant) {
-      return next(createError('Restaurant not found', 404));
-    }
+      if (!restaurant) {
+        throw createError('Restaurant not found', 404);
+      }
+
+      const existingVisit = await tx.userVisit.findUnique({
+        where: {
+          userId_restaurantId: {
+            userId,
+            restaurantId,
+          },
+        },
+      });
+
+      if (existingVisit) {
+        throw createError('You have already visited this restaurant', 409);
+      }
 
     // Use a transaction to atomically check, create, and update scores
     // This prevents race conditions where concurrent requests could both award first-visit points
@@ -34,6 +49,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
         where: {
           userId,
           restaurantId,
+          dateVisited: new Date(dateVisited),
+          notes,
         },
       });
 
