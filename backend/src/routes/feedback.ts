@@ -1,7 +1,8 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import { emailService } from '../utils/emailService';
+import { prisma } from '../utils/prisma';
 import Joi from 'joi';
 
 const router = express.Router();
@@ -11,7 +12,7 @@ const feedbackSchema = Joi.object({
   description: Joi.string().min(10).max(2000).required(),
 });
 
-router.post('/', authenticateToken, async (req, res, next) => {
+router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { error, value } = feedbackSchema.validate(req.body);
     if (error) {
@@ -19,10 +20,20 @@ router.post('/', authenticateToken, async (req, res, next) => {
     }
 
     const { feedbackType, description } = value;
-    const user = (req as any).user;
+    const userId = req.userId;
+
+    if (!userId) {
+      return next(createError('Authentication required', 401));
+    }
+
+    // Fetch user details from database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, username: true },
+    });
 
     if (!user) {
-      return next(createError('Authentication required', 401));
+      return next(createError('User not found', 404));
     }
 
     await emailService.sendFeedbackEmail({
