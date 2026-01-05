@@ -18,55 +18,60 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const { restaurantId, dateVisited, notes } = value;
     const userId = req.userId!;
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-    });
+    // Use transaction to prevent race conditions when creating visits
+    const result = await prisma.$transaction(async (tx) => {
+      const restaurant = await tx.restaurant.findUnique({
+        where: { id: restaurantId },
+      });
 
-    if (!restaurant) {
-      return next(createError('Restaurant not found', 404));
-    }
+      if (!restaurant) {
+        throw createError('Restaurant not found', 404);
+      }
 
-    const existingVisit = await prisma.userVisit.findUnique({
-      where: {
-        userId_restaurantId: {
+      const existingVisit = await tx.userVisit.findUnique({
+        where: {
+          userId_restaurantId: {
+            userId,
+            restaurantId,
+          },
+        },
+      });
+
+      if (existingVisit) {
+        throw createError('You have already visited this restaurant', 409);
+      }
+
+      const visit = await tx.userVisit.create({
+        data: {
           userId,
           restaurantId,
+          dateVisited: new Date(dateVisited),
+          notes,
         },
-      },
-    });
-
-    if (existingVisit) {
-      return next(createError('You have already visited this restaurant', 409));
-    }
-
-    const visit = await prisma.userVisit.create({
-      data: {
-        userId,
-        restaurantId,
-        dateVisited: new Date(dateVisited),
-        notes,
-      },
-      include: {
-        restaurant: true,
-      },
-    });
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalScore: {
-          increment: restaurant.michelinStars,
+        include: {
+          restaurant: true,
         },
-        restaurantsVisitedCount: {
-          increment: 1,
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            increment: restaurant.michelinStars,
+          },
+          restaurantsVisitedCount: {
+            increment: 1,
+          },
         },
-      },
+      });
+
+      return { visit, pointsEarned: restaurant.michelinStars };
     });
 
     res.status(201).json({
       message: 'Visit recorded successfully',
-      visit,
-      pointsEarned: restaurant.michelinStars,
+      visit: result.visit,
+      pointsEarned: result.pointsEarned,
     });
   } catch (error) {
     next(error);
@@ -118,33 +123,38 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
     const { id } = req.params;
     const userId = req.userId!;
 
-    const visit = await prisma.userVisit.findUnique({
-      where: { id },
-      include: { restaurant: true },
-    });
+    // Use transaction to prevent race conditions when deleting visits
+    const result = await prisma.$transaction(async (tx) => {
+      const visit = await tx.userVisit.findUnique({
+        where: { id },
+        include: { restaurant: true },
+      });
 
-    if (!visit) {
-      return next(createError('Visit not found', 404));
-    }
+      if (!visit) {
+        throw createError('Visit not found', 404);
+      }
 
-    if (visit.userId !== userId) {
-      return next(createError('Not authorized to delete this visit', 403));
-    }
+      if (visit.userId !== userId) {
+        throw createError('Not authorized to delete this visit', 403);
+      }
 
-    await prisma.userVisit.delete({
-      where: { id },
-    });
+      await tx.userVisit.delete({
+        where: { id },
+      });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalScore: {
-          decrement: visit.restaurant.michelinStars,
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            decrement: visit.restaurant.michelinStars,
+          },
+          restaurantsVisitedCount: {
+            decrement: 1,
+          },
         },
-        restaurantsVisitedCount: {
-          decrement: 1,
-        },
-      },
+      });
+
+      return visit;
     });
 
     res.json({ message: 'Visit deleted successfully' });
