@@ -13,6 +13,7 @@ model User {
   username                String      @unique
   email                   String      @unique
   passwordHash            String      @map("password_hash")
+  admin                   Boolean     @default(false)
   totalScore              Int         @default(0) @map("total_score")
   restaurantsVisitedCount Int         @default(0) @map("restaurants_visited_count")
   createdAt               DateTime    @default(now()) @map("created_at")
@@ -61,9 +62,9 @@ model UserVisit {
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, restaurantId])
   @@index([userId])
   @@index([restaurantId])
+  @@index([userId, restaurantId])
   @@map("user_visits")
 }
 
