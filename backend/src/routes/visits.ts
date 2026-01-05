@@ -26,18 +26,15 @@ router.post('/', async (req: AuthRequest, res, next) => {
       return next(createError('Restaurant not found', 404));
     }
 
-    const existingVisit = await prisma.userVisit.findUnique({
+    // Check if this is the first visit to this restaurant
+    const existingVisits = await prisma.userVisit.findMany({
       where: {
-        userId_restaurantId: {
-          userId,
-          restaurantId,
-        },
+        userId,
+        restaurantId,
       },
     });
 
-    if (existingVisit) {
-      return next(createError('You have already visited this restaurant', 409));
-    }
+    const isFirstVisit = existingVisits.length === 0;
 
     const visit = await prisma.userVisit.create({
       data: {
@@ -51,22 +48,25 @@ router.post('/', async (req: AuthRequest, res, next) => {
       },
     });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalScore: {
-          increment: restaurant.michelinStars,
+    // Only award points on first visit
+    if (isFirstVisit) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            increment: restaurant.michelinStars,
+          },
+          restaurantsVisitedCount: {
+            increment: 1,
+          },
         },
-        restaurantsVisitedCount: {
-          increment: 1,
-        },
-      },
-    });
+      });
+    }
 
     res.status(201).json({
       message: 'Visit recorded successfully',
       visit,
-      pointsEarned: restaurant.michelinStars,
+      pointsEarned: isFirstVisit ? restaurant.michelinStars : 0,
     });
   } catch (error) {
     next(error);
@@ -131,21 +131,35 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
       return next(createError('Not authorized to delete this visit', 403));
     }
 
+    // Check if there are other visits to this restaurant
+    const otherVisits = await prisma.userVisit.findMany({
+      where: {
+        userId,
+        restaurantId: visit.restaurantId,
+        id: { not: id },
+      },
+    });
+
+    const isLastVisit = otherVisits.length === 0;
+
     await prisma.userVisit.delete({
       where: { id },
     });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalScore: {
-          decrement: visit.restaurant.michelinStars,
+    // Only deduct points if this was the last visit to this restaurant
+    if (isLastVisit) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            decrement: visit.restaurant.michelinStars,
+          },
+          restaurantsVisitedCount: {
+            decrement: 1,
+          },
         },
-        restaurantsVisitedCount: {
-          decrement: 1,
-        },
-      },
-    });
+      });
+    }
 
     res.json({ message: 'Visit deleted successfully' });
   } catch (error) {

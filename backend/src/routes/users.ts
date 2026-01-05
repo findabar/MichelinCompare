@@ -35,7 +35,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
     const starStats = await prisma.$queryRaw`
       SELECT
         r.michelin_stars as stars,
-        COUNT(*)::int as count
+        COUNT(DISTINCT r.id)::int as count
       FROM user_visits uv
       JOIN restaurants r ON uv.restaurant_id = r.id
       WHERE uv.user_id = ${userId}
@@ -46,7 +46,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
     const countryStats = await prisma.$queryRaw`
       SELECT
         r.country,
-        COUNT(*)::int as count
+        COUNT(DISTINCT r.id)::int as count
       FROM user_visits uv
       JOIN restaurants r ON uv.restaurant_id = r.id
       WHERE uv.user_id = ${userId}
@@ -109,7 +109,7 @@ router.get('/profile/:username', async (req, res, next) => {
     const starStats = await prisma.$queryRaw`
       SELECT
         r.michelin_stars as stars,
-        COUNT(*)::int as count
+        COUNT(DISTINCT r.id)::int as count
       FROM user_visits uv
       JOIN restaurants r ON uv.restaurant_id = r.id
       WHERE uv.user_id = ${user.id}
