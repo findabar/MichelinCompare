@@ -18,16 +18,16 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const { restaurantId, dateVisited, notes } = value;
     const userId = req.userId!;
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-    });
+    // Use transaction to prevent race conditions when creating visits
+    const result = await prisma.$transaction(async (tx) => {
+      const restaurant = await tx.restaurant.findUnique({
+        where: { id: restaurantId },
+      });
 
-    if (!restaurant) {
-      return next(createError('Restaurant not found', 404));
-    }
+      if (!restaurant) {
+        throw createError('Restaurant not found', 404);
+      }
 
-    // Wrap the check + create + score update in a transaction to prevent race conditions
-    const visit = await prisma.$transaction(async (tx) => {
       const existingVisit = await tx.userVisit.findUnique({
         where: {
           userId_restaurantId: {
@@ -41,7 +41,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         throw createError('You have already visited this restaurant', 409);
       }
 
-      const newVisit = await tx.userVisit.create({
+      const visit = await tx.userVisit.create({
         data: {
           userId,
           restaurantId,
@@ -65,13 +65,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
         },
       });
 
-      return newVisit;
+      return { visit, pointsEarned: restaurant.michelinStars };
     });
 
     res.status(201).json({
       message: 'Visit recorded successfully',
-      visit,
-      pointsEarned: restaurant.michelinStars,
+      visit: result.visit,
+      pointsEarned: result.pointsEarned,
     });
   } catch (error) {
     next(error);
@@ -123,8 +123,8 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
     const { id } = req.params;
     const userId = req.userId!;
 
-    // Wrap the delete + score update in a transaction to prevent race conditions
-    await prisma.$transaction(async (tx) => {
+    // Use transaction to prevent race conditions when deleting visits
+    const result = await prisma.$transaction(async (tx) => {
       const visit = await tx.userVisit.findUnique({
         where: { id },
         include: { restaurant: true },
@@ -153,6 +153,8 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
           },
         },
       });
+
+      return visit;
     });
 
     res.json({ message: 'Visit deleted successfully' });
