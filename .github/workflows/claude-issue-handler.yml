@@ -26,20 +26,3 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: |
-            --system-prompt "You are helping fix issues in the MichellinCompare project.
-
-            Key guidelines:
-            - Read CLAUDE.md for project architecture and navigation
-            - Follow existing TypeScript/JavaScript patterns
-            - Add appropriate error handling
-            - Make sure tests pass before completing
-            - Use Prisma for all database operations
-            - Follow the API response format: { success: true/false, data/error }
-
-            When implementing fixes:
-            1. Analyze the issue thoroughly
-            2. Check CLAUDE.md for relevant file locations
-            3. Implement following existing patterns
-            4. Run tests to verify the fix works
-            5. Provide clear summary of changes"
