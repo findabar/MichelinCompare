@@ -26,41 +26,46 @@ router.post('/', async (req: AuthRequest, res, next) => {
       return next(createError('Restaurant not found', 404));
     }
 
-    const existingVisit = await prisma.userVisit.findUnique({
-      where: {
-        userId_restaurantId: {
+    // Wrap the check + create + score update in a transaction to prevent race conditions
+    const visit = await prisma.$transaction(async (tx) => {
+      const existingVisit = await tx.userVisit.findUnique({
+        where: {
+          userId_restaurantId: {
+            userId,
+            restaurantId,
+          },
+        },
+      });
+
+      if (existingVisit) {
+        throw createError('You have already visited this restaurant', 409);
+      }
+
+      const newVisit = await tx.userVisit.create({
+        data: {
           userId,
           restaurantId,
+          dateVisited: new Date(dateVisited),
+          notes,
         },
-      },
-    });
-
-    if (existingVisit) {
-      return next(createError('You have already visited this restaurant', 409));
-    }
-
-    const visit = await prisma.userVisit.create({
-      data: {
-        userId,
-        restaurantId,
-        dateVisited: new Date(dateVisited),
-        notes,
-      },
-      include: {
-        restaurant: true,
-      },
-    });
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalScore: {
-          increment: restaurant.michelinStars,
+        include: {
+          restaurant: true,
         },
-        restaurantsVisitedCount: {
-          increment: 1,
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            increment: restaurant.michelinStars,
+          },
+          restaurantsVisitedCount: {
+            increment: 1,
+          },
         },
-      },
+      });
+
+      return newVisit;
     });
 
     res.status(201).json({
@@ -118,33 +123,36 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
     const { id } = req.params;
     const userId = req.userId!;
 
-    const visit = await prisma.userVisit.findUnique({
-      where: { id },
-      include: { restaurant: true },
-    });
+    // Wrap the delete + score update in a transaction to prevent race conditions
+    await prisma.$transaction(async (tx) => {
+      const visit = await tx.userVisit.findUnique({
+        where: { id },
+        include: { restaurant: true },
+      });
 
-    if (!visit) {
-      return next(createError('Visit not found', 404));
-    }
+      if (!visit) {
+        throw createError('Visit not found', 404);
+      }
 
-    if (visit.userId !== userId) {
-      return next(createError('Not authorized to delete this visit', 403));
-    }
+      if (visit.userId !== userId) {
+        throw createError('Not authorized to delete this visit', 403);
+      }
 
-    await prisma.userVisit.delete({
-      where: { id },
-    });
+      await tx.userVisit.delete({
+        where: { id },
+      });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        totalScore: {
-          decrement: visit.restaurant.michelinStars,
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            decrement: visit.restaurant.michelinStars,
+          },
+          restaurantsVisitedCount: {
+            decrement: 1,
+          },
         },
-        restaurantsVisitedCount: {
-          decrement: 1,
-        },
-      },
+      });
     });
 
     res.json({ message: 'Visit deleted successfully' });
