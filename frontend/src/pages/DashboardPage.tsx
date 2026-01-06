@@ -288,7 +288,7 @@ const DashboardPage = () => {
                               <Star
                                 key={i}
                                 className={`h-3 w-3 ${
-                                  i < visit.moodRating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                                  i < (visit.moodRating ?? 0) ? 'text-yellow-400 fill-current' : 'text-gray-300'
                                 }`}
                               />
                             ))}
