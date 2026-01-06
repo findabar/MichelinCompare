@@ -18,7 +18,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const { restaurantId, dateVisited, notes } = value;
     const userId = req.userId!;
 
-    // Use transaction to prevent race conditions when creating visits
+    // Use a transaction to atomically check, create, and update scores
+    // This prevents race conditions where concurrent requests could both award first-visit points
     const result = await prisma.$transaction(async (tx) => {
       const restaurant = await tx.restaurant.findUnique({
         where: { id: restaurantId },
@@ -28,6 +29,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         throw createError('Restaurant not found', 404);
       }
 
+      // Check if user has already visited this restaurant
       const existingVisit = await tx.userVisit.findUnique({
         where: {
           userId_restaurantId: {
@@ -41,21 +43,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         throw createError('You have already visited this restaurant', 409);
       }
 
-    // Use a transaction to atomically check, create, and update scores
-    // This prevents race conditions where concurrent requests could both award first-visit points
-    const result = await prisma.$transaction(async (tx) => {
-      // Check if this is the first visit to this restaurant
-      const existingVisits = await tx.userVisit.findMany({
-        where: {
-          userId,
-          restaurantId,
-          dateVisited: new Date(dateVisited),
-          notes,
-        },
-      });
-
-      const isFirstVisit = existingVisits.length === 0;
-
+      // Create the visit
       const visit = await tx.userVisit.create({
         data: {
           userId,
@@ -68,28 +56,26 @@ router.post('/', async (req: AuthRequest, res, next) => {
         },
       });
 
-      // Only award points on first visit
-      if (isFirstVisit) {
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            totalScore: {
-              increment: restaurant.michelinStars,
-            },
-            restaurantsVisitedCount: {
-              increment: 1,
-            },
+      // Award points for the first visit to this restaurant
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          totalScore: {
+            increment: restaurant.michelinStars,
           },
-        });
-      }
+          restaurantsVisitedCount: {
+            increment: 1,
+          },
+        },
+      });
 
-      return { visit, isFirstVisit };
+      return { visit, restaurant };
     });
 
     res.status(201).json({
       message: 'Visit recorded successfully',
       visit: result.visit,
-      pointsEarned: result.isFirstVisit ? restaurant.michelinStars : 0,
+      pointsEarned: result.restaurant.michelinStars,
     });
   } catch (error) {
     next(error);
