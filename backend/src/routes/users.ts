@@ -129,4 +129,67 @@ router.get('/profile/:username', async (req, res, next) => {
   }
 });
 
+// Get detailed profile statistics for the Michelin Profile card
+router.get('/profile/:username/profile-stats', async (req, res, next) => {
+  try {
+    const { username } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return next(createError('User not found', 404));
+    }
+
+    // Get cuisine preferences
+    const cuisineStats = await prisma.$queryRaw`
+      SELECT
+        r.cuisine_type as "cuisineType",
+        COUNT(DISTINCT r.id)::int as count
+      FROM user_visits uv
+      JOIN restaurants r ON uv.restaurant_id = r.id
+      WHERE uv.user_id = ${user.id}
+      GROUP BY r.cuisine_type
+      ORDER BY count DESC
+      LIMIT 5
+    ` as unknown as Array<{ cuisineType: string; count: number }>;
+
+    // Get star distribution
+    const starDistribution = await prisma.$queryRaw`
+      SELECT
+        r.michelin_stars as stars,
+        COUNT(DISTINCT r.id)::int as count
+      FROM user_visits uv
+      JOIN restaurants r ON uv.restaurant_id = r.id
+      WHERE uv.user_id = ${user.id}
+      GROUP BY r.michelin_stars
+      ORDER BY r.michelin_stars
+    ` as unknown as Array<{ stars: number; count: number }>;
+
+    // Get dining occasion stats (solo vs social)
+    const occasionStats = await prisma.$queryRaw`
+      SELECT
+        CASE
+          WHEN occasion IS NULL OR occasion = '' THEN 'unspecified'
+          WHEN LOWER(occasion) IN ('solo', 'alone', 'business lunch', 'work') THEN 'solo'
+          ELSE 'social'
+        END as category,
+        COUNT(*)::int as count
+      FROM user_visits
+      WHERE user_id = ${user.id}
+      GROUP BY category
+    ` as unknown as Array<{ category: string; count: number }>;
+
+    res.json({
+      cuisinePreferences: cuisineStats,
+      starDistribution,
+      occasionStats,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
