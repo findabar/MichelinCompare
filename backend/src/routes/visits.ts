@@ -40,9 +40,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         },
       });
 
-      if (existingVisit) {
-        throw createError('You have already visited this restaurant', 409);
-      }
+      const isFirstVisit = !existingVisit;
 
       // Create the visit
       const visit = await tx.userVisit.create({
@@ -60,26 +58,29 @@ router.post('/', async (req: AuthRequest, res, next) => {
         },
       });
 
-      // Award points for the first visit to this restaurant
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          totalScore: {
-            increment: restaurant.michelinStars,
+      // Award points only for the first visit to this restaurant
+      if (isFirstVisit) {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            totalScore: {
+              increment: restaurant.michelinStars,
+            },
+            restaurantsVisitedCount: {
+              increment: 1,
+            },
           },
-          restaurantsVisitedCount: {
-            increment: 1,
-          },
-        },
-      });
+        });
+      }
 
-      return { visit, restaurant };
+      return { visit, restaurant, isFirstVisit };
     });
 
     res.status(201).json({
       message: 'Visit recorded successfully',
       visit: result.visit,
-      pointsEarned: result.restaurant.michelinStars,
+      pointsEarned: result.isFirstVisit ? result.restaurant.michelinStars : 0,
+      isFirstVisit: result.isFirstVisit,
     });
   } catch (error) {
     next(error);
