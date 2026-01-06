@@ -40,6 +40,9 @@ export interface UserVisit {
   restaurantId: string;
   dateVisited: string;
   notes?: string;
+  bestDish?: string;
+  occasion?: string;
+  moodRating?: number;
   createdAt: string;
   restaurant: Restaurant;
 }
