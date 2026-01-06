@@ -58,6 +58,9 @@ model UserVisit {
   restaurantId String    @map("restaurant_id")
   dateVisited  DateTime  @map("date_visited")
   notes        String?
+  bestDish     String?   @map("best_dish")
+  occasion     String?
+  moodRating   Int?      @map("mood_rating")
   createdAt    DateTime  @default(now()) @map("created_at")
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)

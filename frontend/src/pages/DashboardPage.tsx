@@ -266,8 +266,38 @@ const DashboardPage = () => {
                         </div>
                       </div>
 
-                      {visit.notes && (
+                      {visit.occasion && (
+                        <div className="mt-2">
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            {visit.occasion}
+                          </span>
+                        </div>
+                      )}
+
+                      {visit.bestDish && (
                         <p className="text-gray-700 mt-2 text-sm bg-gray-50 p-2 rounded">
+                          <span className="font-medium">Best dish:</span> {visit.bestDish}
+                        </p>
+                      )}
+
+                      {visit.moodRating && (
+                        <div className="flex items-center mt-2">
+                          <span className="text-sm text-gray-600 mr-2">Experience:</span>
+                          <div className="flex">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < visit.moodRating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {visit.notes && (
+                        <p className="text-gray-700 mt-2 text-sm bg-gray-50 p-2 rounded italic">
                           {visit.notes}
                         </p>
                       )}

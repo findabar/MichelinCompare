@@ -139,14 +139,38 @@ const ProfilePage = () => {
                           {visit.restaurant.city}, {visit.restaurant.country}
                         </span>
                       </div>
-                      <div className="flex items-center mt-1 text-xs text-gray-500">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {new Date(visit.dateVisited).toLocaleDateString()}
+                      <div className="flex items-center flex-wrap gap-2 mt-1 text-xs text-gray-500">
+                        <div className="flex items-center">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {new Date(visit.dateVisited).toLocaleDateString()}
+                        </div>
+                        {visit.occasion && (
+                          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                            {visit.occasion}
+                          </span>
+                        )}
                       </div>
                     </div>
+                    {visit.moodRating && (
+                      <div className="flex ml-2">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-3 w-3 ${
+                              i < visit.moodRating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
+                  {visit.bestDish && (
+                    <p className="text-sm text-gray-700 mt-2 bg-gray-50 p-2 rounded">
+                      <span className="font-medium">Best dish:</span> {visit.bestDish}
+                    </p>
+                  )}
                   {visit.notes && (
-                    <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded">
+                    <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded italic">
                       {visit.notes}
                     </p>
                   )}
