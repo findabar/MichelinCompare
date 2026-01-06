@@ -72,3 +72,61 @@ jobs:
       - name: Test summary
         if: always()
         run: echo "Tests completed for branch ${{ github.ref_name }}"
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const branch = '${{ github.ref_name }}';
+            const commit = '${{ github.sha }}'.substring(0, 7);
+            const commitUrl = `https://github.com/${{ github.repository }}/commit/${{ github.sha }}`;
+
+            const issueTitle = `Quick Tests Failed on ${branch}`;
+            const issueBody = `## Quick Test Failure
+
+            The quick tests workflow failed on branch \`${branch}\`.
+
+            **Details:**
+            - Branch: \`${branch}\`
+            - Commit: [\`${commit}\`](${commitUrl})
+            - Workflow Run: [View logs](${runUrl})
+            - Triggered by: @${{ github.actor }}
+
+            **Action Required:**
+            Please review the [workflow logs](${runUrl}) to identify and fix the failing tests.
+
+            ---
+            *This issue was automatically created by the Quick Tests workflow.*`;
+
+            // Check if an issue already exists for this branch
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['quick-test-failure', 'automated'],
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title === issueTitle
+            );
+
+            if (existingIssue) {
+              // Update existing issue with new run information
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `Another test failure detected:\n- Commit: [\`${commit}\`](${commitUrl})\n- Run: [View logs](${runUrl})`,
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['quick-test-failure', 'automated', 'bug'],
+              });
+            }
