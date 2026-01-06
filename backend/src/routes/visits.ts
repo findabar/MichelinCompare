@@ -30,12 +30,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
       }
 
       // Check if user has already visited this restaurant
-      const existingVisit = await tx.userVisit.findUnique({
+      const existingVisit = await tx.userVisit.findFirst({
         where: {
-          userId_restaurantId: {
-            userId,
-            restaurantId,
-          },
+          userId,
+          restaurantId,
+        },
+        orderBy: {
+          dateVisited: 'asc',
         },
       });
 
