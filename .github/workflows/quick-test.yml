@@ -4,6 +4,8 @@ name: Quick Tests
 on:
   push:
     branches: ['**']
+    paths-ignore:
+      - '.github/workflows/**'
 
 jobs:
   quick-test:
