@@ -78,6 +78,13 @@ export const userAPI = {
 
   getUserProfile: (username: string) =>
     api.get<{ user: any; recentVisits: UserVisit[]; stats: UserStats }>(`/users/profile/${username}`),
+
+  getProfileStats: (username: string) =>
+    api.get<{
+      cuisinePreferences: Array<{ cuisineType: string; count: number }>;
+      starDistribution: Array<{ stars: number; count: number }>;
+      occasionStats: Array<{ category: string; count: number }>;
+    }>(`/users/profile/${username}/profile-stats`),
 };
 
 export const leaderboardAPI = {

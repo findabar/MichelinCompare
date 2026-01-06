@@ -4,6 +4,7 @@ import { Star, Map, Calendar, Trophy, User as UserIcon } from 'lucide-react';
 import { userAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import MichelinProfileCard from '../components/MichelinProfileCard';
 import { getStarCount } from '../utils/restaurant';
 
 const ProfilePage = () => {
@@ -83,6 +84,11 @@ const ProfilePage = () => {
           <div className="text-gray-600">Average Stars</div>
         </div>
       </div>
+
+      {/* Michelin Profile Card */}
+      {user.restaurantsVisitedCount > 0 && (
+        <MichelinProfileCard username={username!} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Stars Distribution */}
