@@ -15,7 +15,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
       return next(createError(error.details[0].message, 400));
     }
 
-    const { restaurantId, dateVisited, notes } = value;
+    const { restaurantId, dateVisited, notes, bestDish, occasion, moodRating } = value;
     const userId = req.userId!;
 
     // Use a transaction to atomically check, create, and update scores
@@ -51,6 +51,9 @@ router.post('/', async (req: AuthRequest, res, next) => {
           restaurantId,
           dateVisited: new Date(dateVisited),
           notes,
+          bestDish,
+          occasion,
+          moodRating,
         },
         include: {
           restaurant: true,

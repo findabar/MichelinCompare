@@ -15,6 +15,9 @@ export const visitSchema = Joi.object({
   restaurantId: Joi.string().required(),
   dateVisited: Joi.date().iso().required(),
   notes: Joi.string().allow('').optional(),
+  bestDish: Joi.string().allow('').optional(),
+  occasion: Joi.string().valid('celebration', 'solo', 'work', 'spontaneous').allow('').optional(),
+  moodRating: Joi.number().integer().min(1).max(5).optional(),
 });
 
 export const restaurantQuerySchema = Joi.object({

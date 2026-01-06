@@ -12,6 +12,9 @@ import { getStarCount } from '../utils/restaurant';
 interface VisitForm {
   dateVisited: string;
   notes: string;
+  bestDish: string;
+  occasion: string;
+  moodRating: number;
 }
 
 interface EditForm {
@@ -44,6 +47,9 @@ const RestaurantDetailPage = () => {
     defaultValues: {
       dateVisited: new Date().toISOString().split('T')[0],
       notes: '',
+      bestDish: '',
+      occasion: '',
+      moodRating: 3,
     },
   });
 
@@ -141,6 +147,9 @@ const RestaurantDetailPage = () => {
       restaurantId: id!,
       dateVisited: data.dateVisited,
       notes: data.notes,
+      bestDish: data.bestDish,
+      occasion: data.occasion,
+      moodRating: data.moodRating ? Number(data.moodRating) : undefined,
     });
   };
 
@@ -464,13 +473,66 @@ const RestaurantDetailPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Best Dish (optional)
+              </label>
+              <input
+                {...register('bestDish')}
+                type="text"
+                className="input-field"
+                placeholder="What was the standout dish?"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Occasion (optional)
+              </label>
+              <select
+                {...register('occasion')}
+                className="input-field"
+              >
+                <option value="">Select occasion...</option>
+                <option value="celebration">Celebration</option>
+                <option value="solo">Solo</option>
+                <option value="work">Work</option>
+                <option value="spontaneous">Spontaneous</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Experience Rating (optional)
+              </label>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">Memorable</span>
+                <input
+                  {...register('moodRating', { valueAsNumber: true })}
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="1"
+                  className="flex-1"
+                />
+                <span className="text-sm text-gray-600">Life-changing</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
+                <span>1</span>
+                <span>2</span>
+                <span>3</span>
+                <span>4</span>
+                <span>5</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Notes (optional)
               </label>
               <textarea
                 {...register('notes')}
                 rows={3}
                 className="input-field"
-                placeholder="Share your experience, favorite dishes, etc."
+                placeholder="Share your overall experience..."
               />
             </div>
 
@@ -503,14 +565,39 @@ const RestaurantDetailPage = () => {
               <div key={visit.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
                 <User className="h-5 w-5 text-gray-400 mt-0.5" />
                 <div className="flex-1">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 mb-1">
                     <span className="font-medium">{visit.user.username}</span>
                     <span className="text-sm text-gray-500">
                       visited on {new Date(visit.dateVisited).toLocaleDateString()}
                     </span>
+                    {visit.occasion && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                        {visit.occasion}
+                      </span>
+                    )}
                   </div>
+                  {visit.bestDish && (
+                    <p className="text-sm text-gray-700 mt-1">
+                      <span className="font-medium">Best dish:</span> {visit.bestDish}
+                    </p>
+                  )}
+                  {visit.moodRating && (
+                    <div className="flex items-center mt-1">
+                      <span className="text-sm text-gray-600 mr-2">Experience:</span>
+                      <div className="flex">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-3 w-3 ${
+                              i < visit.moodRating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {visit.notes && (
-                    <p className="text-sm text-gray-600 mt-1">{visit.notes}</p>
+                    <p className="text-sm text-gray-600 mt-2 italic">{visit.notes}</p>
                   )}
                 </div>
               </div>
