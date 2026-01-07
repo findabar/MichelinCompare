@@ -69,8 +69,8 @@ const RestaurantDetailPage = () => {
 
   const createVisitMutation = useMutation(visitAPI.createVisit, {
     onSuccess: (data) => {
-      if (data.data.isFirstVisit) {
-        toast.success(`Visit recorded! You earned ${data.data.pointsEarned} points!`);
+      if (data.isFirstVisit) {
+        toast.success(`Visit recorded! You earned ${data.pointsEarned} points!`);
       } else {
         toast.success('Visit recorded successfully!');
       }
