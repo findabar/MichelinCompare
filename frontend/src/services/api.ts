@@ -63,7 +63,7 @@ export const restaurantAPI = {
 
 export const visitAPI = {
   createVisit: (data: { restaurantId: string; dateVisited: string; notes?: string; bestDish?: string; occasion?: string; moodRating?: number }) =>
-    api.post<{ message: string; visit: UserVisit; pointsEarned: number }>('/visits', data),
+    api.post<{ message: string; visit: UserVisit; pointsEarned: number; isFirstVisit: boolean }>('/visits', data),
 
   getUserVisits: (page = 1, limit = 20) =>
     api.get<VisitResponse>('/visits', { params: { page, limit } }),

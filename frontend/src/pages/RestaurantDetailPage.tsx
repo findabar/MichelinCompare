@@ -69,7 +69,11 @@ const RestaurantDetailPage = () => {
 
   const createVisitMutation = useMutation(visitAPI.createVisit, {
     onSuccess: (data) => {
-      toast.success(`Visit recorded! You earned ${data.data.pointsEarned} points!`);
+      if (data.data.isFirstVisit) {
+        toast.success(`Visit recorded! You earned ${data.data.pointsEarned} points!`);
+      } else {
+        toast.success('Visit recorded successfully!');
+      }
       queryClient.invalidateQueries('user-visits');
       queryClient.invalidateQueries(['restaurant', id]);
       setShowVisitForm(false);
@@ -424,29 +428,36 @@ const RestaurantDetailPage = () => {
         {/* Visit Action */}
         {user && !isEditing && (
           <div className="mt-6 pt-6 border-t">
-            {hasVisited ? (
-              <div className="flex items-center space-x-2 text-green-600">
-                <Star className="h-5 w-5 fill-current" />
-                <span className="font-medium">You've visited this restaurant!</span>
+            <div className="flex items-center justify-between">
+              <div>
+                {hasVisited ? (
+                  <>
+                    <p className="font-medium text-gray-900 flex items-center space-x-2">
+                      <Star className="h-5 w-5 fill-current text-green-600" />
+                      <span>You've visited this restaurant!</span>
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Log another visit to track your experience
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-gray-900">Haven't visited yet?</p>
+                    <p className="text-sm text-gray-600">
+                      Mark as visited to earn {getStarCount(restaurantData)} point{getStarCount(restaurantData) !== 1 ? 's' : ''}!
+                    </p>
+                  </>
+                )}
               </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">Haven't visited yet?</p>
-                  <p className="text-sm text-gray-600">
-                    Mark as visited to earn {getStarCount(restaurantData)} point{getStarCount(restaurantData) !== 1 ? 's' : ''}!
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowVisitForm(!showVisitForm)}
-                  className="btn-primary flex items-center space-x-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Mark as Visited</span>
-                </button>
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setShowVisitForm(!showVisitForm)}
+                className="btn-primary flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{hasVisited ? 'Log Another Visit' : 'Mark as Visited'}</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
