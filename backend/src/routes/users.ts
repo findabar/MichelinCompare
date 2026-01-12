@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../utils/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
+import { generateMichelinProfile } from '../services/michelinProfileService';
 
 const router = express.Router();
 
@@ -187,6 +188,34 @@ router.get('/profile/:username/profile-stats', async (req, res, next) => {
       starDistribution,
       occasionStats,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get Michelin profile for a user by user ID
+router.get('/:id/michelin-profile', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return next(createError('User not found', 404));
+    }
+
+    // Generate profile
+    const profile = await generateMichelinProfile(id);
+
+    if (!profile) {
+      return next(createError('Unable to generate profile', 500));
+    }
+
+    res.json(profile);
   } catch (error) {
     next(error);
   }
