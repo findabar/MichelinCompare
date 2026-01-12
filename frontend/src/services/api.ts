@@ -12,6 +12,8 @@ import type {
   Wishlist,
   WishlistResponse,
   WishlistCheckResponse,
+  MapFilters,
+  MapResponse,
 } from '../types';
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
@@ -56,6 +58,14 @@ export const restaurantAPI = {
 
   getFilterOptions: () =>
     api.get<FilterOptions>('/restaurants/filters'),
+
+  getMapRestaurants: (filters: MapFilters) => {
+    const params: any = { ...filters };
+    if (filters.bounds) {
+      params.bounds = JSON.stringify(filters.bounds);
+    }
+    return api.get<MapResponse>('/restaurants/map', { params });
+  },
 
   updateRestaurant: (id: string, data: Partial<Restaurant>) =>
     api.put<{ success: boolean; message: string; restaurant: Restaurant }>(`/restaurants/${id}`, data),

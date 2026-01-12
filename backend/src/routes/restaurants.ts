@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma';
 import { restaurantQuerySchema } from '../utils/validation';
 import { createError } from '../middleware/errorHandler';
 import adminAuth from '../middleware/adminAuth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -96,6 +97,119 @@ router.get('/filters', async (req, res, next) => {
       countries: countries.map((c: any) => c.country),
       cities: cities.map((c: any) => ({ city: c.city, country: c.country })),
       cuisineTypes: cuisineTypes.map((c: any) => c.cuisineType),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Map endpoint - returns restaurants with location data and user flags
+router.get('/map', async (req: AuthRequest, res, next) => {
+  try {
+    // Parse query parameters
+    const {
+      bounds,
+      stars,
+      cuisines,
+      priceMin,
+      priceMax,
+      centerLat,
+      centerLng,
+      radiusKm,
+    } = req.query;
+
+    // Build where clause
+    const where: any = {
+      // Only include restaurants with coordinates
+      latitude: { not: null },
+      longitude: { not: null },
+    };
+
+    // Filter by bounds (for viewport-based queries)
+    if (bounds && typeof bounds === 'string') {
+      try {
+        const { north, south, east, west } = JSON.parse(bounds);
+        where.latitude = {
+          gte: south,
+          lte: north,
+        };
+        where.longitude = {
+          gte: west,
+          lte: east,
+        };
+      } catch (e) {
+        return next(createError('Invalid bounds format', 400));
+      }
+    }
+
+    // Filter by star level (can be comma-separated: "1,2,3")
+    if (stars && typeof stars === 'string') {
+      const starLevels = stars.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      if (starLevels.length > 0) {
+        where.michelinStars = { in: starLevels };
+      }
+    }
+
+    // Filter by cuisines (comma-separated)
+    if (cuisines && typeof cuisines === 'string') {
+      const cuisineList = cuisines.split(',').map(c => c.trim());
+      if (cuisineList.length > 0) {
+        where.OR = cuisineList.map(cuisine => ({
+          cuisineType: { contains: cuisine, mode: 'insensitive' }
+        }));
+      }
+    }
+
+    // Fetch restaurants
+    const restaurants = await prisma.restaurant.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        country: true,
+        cuisineType: true,
+        michelinStars: true,
+        distinction: true,
+        latitude: true,
+        longitude: true,
+        address: true,
+        imageUrl: true,
+      },
+      // Limit results for performance (can be adjusted)
+      take: 1000,
+    });
+
+    // If user is authenticated, add visit and wishlist flags
+    let enrichedRestaurants = restaurants;
+    if (req.userId) {
+      const userId = req.userId;
+
+      // Get user's visits and wishlists
+      const [userVisits, userWishlists] = await Promise.all([
+        prisma.userVisit.findMany({
+          where: { userId },
+          select: { restaurantId: true },
+        }),
+        prisma.wishlist.findMany({
+          where: { userId },
+          select: { restaurantId: true },
+        }),
+      ]);
+
+      const visitedIds = new Set(userVisits.map(v => v.restaurantId));
+      const wishlistIds = new Set(userWishlists.map(w => w.restaurantId));
+
+      enrichedRestaurants = restaurants.map(r => ({
+        ...r,
+        isVisited: visitedIds.has(r.id),
+        isWishlisted: wishlistIds.has(r.id),
+      }));
+    }
+
+    res.json({
+      restaurants: enrichedRestaurants,
+      count: enrichedRestaurants.length,
     });
   } catch (error) {
     next(error);
