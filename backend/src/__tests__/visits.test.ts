@@ -70,31 +70,51 @@ describe('Visit Routes', () => {
       expect(response.body).toHaveProperty('error');
     });
 
-    it('should reject duplicate visit to same restaurant', async () => {
-      const user = await createTestUser();
-      const restaurant = await createTestRestaurant();
+    it('should allow multiple visits to same restaurant but only award points on first visit', async () => {
+      const user = await createTestUser({ totalScore: 0 });
+      const restaurant = await createTestRestaurant({ michelinStars: 2 });
 
-      // First visit
-      await request(app)
+      // First visit - should earn points
+      const firstVisit = await request(app)
         .post('/api/visits')
         .set(getAuthHeader(user.token))
         .send({
           restaurantId: restaurant.id,
           dateVisited: new Date().toISOString(),
+          notes: 'First visit',
         })
         .expect(201);
 
-      // Try to visit again
-      const response = await request(app)
+      expect(firstVisit.body.pointsEarned).toBe(2);
+      expect(firstVisit.body.isFirstVisit).toBe(true);
+
+      // Check user score after first visit
+      let updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+      });
+      expect(updatedUser?.totalScore).toBe(2);
+      expect(updatedUser?.restaurantsVisitedCount).toBe(1);
+
+      // Second visit - should NOT earn points
+      const secondVisit = await request(app)
         .post('/api/visits')
         .set(getAuthHeader(user.token))
         .send({
           restaurantId: restaurant.id,
           dateVisited: new Date().toISOString(),
+          notes: 'Second visit',
         })
-        .expect(409);
+        .expect(201);
 
-      expect(response.body.error).toContain('already visited');
+      expect(secondVisit.body.pointsEarned).toBe(0);
+      expect(secondVisit.body.isFirstVisit).toBe(false);
+
+      // Check user score after second visit - should be unchanged
+      updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+      });
+      expect(updatedUser?.totalScore).toBe(2); // Still 2, not 4
+      expect(updatedUser?.restaurantsVisitedCount).toBe(1); // Still 1, not 2
     });
 
     it('should reject visit to non-existent restaurant', async () => {
