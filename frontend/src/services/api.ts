@@ -14,6 +14,9 @@ import type {
   WishlistCheckResponse,
   MapFilters,
   MapResponse,
+  TravelPlan,
+  TravelPlanResponse,
+  TravelPlanCreateRequest,
 } from '../types';
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
@@ -173,6 +176,23 @@ export const wishlistAPI = {
 
   checkWishlist: (restaurantId: string) =>
     api.get<WishlistCheckResponse>(`/wishlist/check/${restaurantId}`),
+};
+
+export const travelPlanAPI = {
+  getTravelPlans: (page = 1, limit = 20) =>
+    api.get<TravelPlanResponse>('/travel-plans', { params: { page, limit } }),
+
+  createTravelPlan: (data: TravelPlanCreateRequest) =>
+    api.post<{ message: string; travelPlan: TravelPlan; shareUrl: string }>('/travel-plans', data),
+
+  getTravelPlan: (id: string) =>
+    api.get<{ travelPlan: TravelPlan }>(`/travel-plans/${id}`),
+
+  getSharedTravelPlan: (token: string) =>
+    api.get<{ travelPlan: TravelPlan }>(`/travel-plans/share/${token}`),
+
+  deleteTravelPlan: (id: string) =>
+    api.delete<{ message: string }>(`/travel-plans/${id}`),
 };
 
 export default api;

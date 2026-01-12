@@ -34,3 +34,13 @@ export const wishlistSchema = Joi.object({
   restaurantId: Joi.string().required(),
   note: Joi.string().allow('').optional(),
 });
+
+export const travelPlanSchema = Joi.object({
+  city: Joi.string().required(),
+  country: Joi.string().optional(),
+  startDate: Joi.date().iso().required(),
+  endDate: Joi.date().iso().greater(Joi.ref('startDate')).required(),
+  maxStarsPerDay: Joi.number().integer().min(1).max(6).optional(),
+  preferredCuisines: Joi.array().items(Joi.string()).optional().default([]),
+  includeVisited: Joi.boolean().optional().default(false),
+});

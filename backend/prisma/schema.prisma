@@ -19,8 +19,9 @@ model User {
   createdAt               DateTime    @default(now()) @map("created_at")
   updatedAt               DateTime    @updatedAt @map("updated_at")
 
-  visits    UserVisit[]
-  wishlists Wishlist[]
+  visits      UserVisit[]
+  wishlists   Wishlist[]
+  travelPlans TravelPlan[]
 
   @@map("users")
 }
@@ -46,8 +47,9 @@ model Restaurant {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  visits    UserVisit[]
-  wishlists Wishlist[]
+  visits              UserVisit[]
+  wishlists           Wishlist[]
+  travelPlanRestaurants TravelPlanRestaurant[]
 
   @@index([country, city])
   @@index([michelinStars])
@@ -115,4 +117,45 @@ model Wishlist {
   @@index([userId])
   @@index([restaurantId])
   @@map("wishlists")
+}
+
+model TravelPlan {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  city                 String
+  country              String?
+  startDate            DateTime @map("start_date")
+  endDate              DateTime @map("end_date")
+  maxStarsPerDay       Int?     @map("max_stars_per_day")
+  preferredCuisines    String[] @map("preferred_cuisines")
+  includeVisited       Boolean  @default(false) @map("include_visited")
+  shareToken           String?  @unique @map("share_token")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurants TravelPlanRestaurant[]
+
+  @@index([userId])
+  @@index([city])
+  @@index([shareToken])
+  @@map("travel_plans")
+}
+
+model TravelPlanRestaurant {
+  id           String   @id @default(cuid())
+  travelPlanId String   @map("travel_plan_id")
+  restaurantId String   @map("restaurant_id")
+  day          Int
+  mealType     String   @map("meal_type") // "lunch" or "dinner"
+  order        Int      // Order within the day
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  travelPlan TravelPlan @relation(fields: [travelPlanId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([travelPlanId, restaurantId])
+  @@index([travelPlanId])
+  @@index([restaurantId])
+  @@map("travel_plan_restaurants")
 }
