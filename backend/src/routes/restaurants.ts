@@ -129,7 +129,26 @@ router.get('/:id', async (req, res, next) => {
       return next(createError('Restaurant not found', 404));
     }
 
-    res.json(restaurant);
+    // Get count of unique users who have visited (social indicator)
+    // Note: For beta, we're just showing the count, not the names
+    const uniqueVisitorsCount = await prisma.userVisit.groupBy({
+      by: ['userId'],
+      where: {
+        restaurantId: id,
+      },
+      _count: {
+        userId: true,
+      },
+    });
+
+    const socialIndicator = {
+      friendsVisitedCount: uniqueVisitorsCount.length,
+    };
+
+    res.json({
+      ...restaurant,
+      socialIndicator,
+    });
   } catch (error) {
     next(error);
   }

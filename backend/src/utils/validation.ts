@@ -29,3 +29,8 @@ export const restaurantQuerySchema = Joi.object({
   cuisineType: Joi.string().allow('').optional(),
   michelinStars: Joi.number().integer().min(0).max(3).optional(),
 });
+
+export const wishlistSchema = Joi.object({
+  restaurantId: Joi.string().required(),
+  note: Joi.string().allow('').optional(),
+});

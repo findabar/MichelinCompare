@@ -14,6 +14,7 @@ import leaderboardRoutes from './routes/leaderboard';
 import scraperRoutes from './routes/scraper';
 import feedbackRoutes from './routes/feedback';
 import adminRoutes from './routes/admin';
+import wishlistRoutes from './routes/wishlist';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -107,6 +108,7 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

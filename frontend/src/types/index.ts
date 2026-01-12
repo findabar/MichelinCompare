@@ -22,6 +22,7 @@ export interface Restaurant {
   longitude?: number;
   description?: string;
   imageUrl?: string;
+  bookingWindowDays?: number;
   createdAt: string;
   updatedAt: string;
   visits?: Array<{
@@ -32,6 +33,9 @@ export interface Restaurant {
       username: string;
     };
   }>;
+  socialIndicator?: {
+    friendsVisitedCount: number;
+  };
 }
 
 export interface UserVisit {
@@ -99,4 +103,23 @@ export interface FilterOptions {
   countries: string[];
   cities: Array<{ city: string; country: string }>;
   cuisineTypes: string[];
+}
+
+export interface Wishlist {
+  id: string;
+  userId: string;
+  restaurantId: string;
+  note?: string;
+  createdAt: string;
+  restaurant: Restaurant;
+}
+
+export interface WishlistResponse {
+  wishlists: Wishlist[];
+  pagination: Pagination;
+}
+
+export interface WishlistCheckResponse {
+  inWishlist: boolean;
+  wishlist: Wishlist | null;
 }

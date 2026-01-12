@@ -7,6 +7,7 @@ import RestaurantDetailPage from './pages/RestaurantDetailPage';
 import DashboardPage from './pages/DashboardPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import ProfilePage from './pages/ProfilePage';
+import WishlistPage from './pages/WishlistPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -33,6 +34,7 @@ function App() {
         {user && (
           <>
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="wishlist" element={<WishlistPage />} />
           </>
         )}
       </Route>

@@ -9,6 +9,9 @@ import type {
   FilterOptions,
   Restaurant,
   UserVisit,
+  Wishlist,
+  WishlistResponse,
+  WishlistCheckResponse,
 } from '../types';
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
@@ -143,6 +146,23 @@ export const scraperAPI = {
       output: string;
       stderr?: string;
     }>('/scraper/seed-production', { clearExisting }),
+};
+
+export const wishlistAPI = {
+  getWishlist: (page = 1, limit = 20) =>
+    api.get<WishlistResponse>('/wishlist', { params: { page, limit } }),
+
+  addToWishlist: (data: { restaurantId: string; note?: string }) =>
+    api.post<{ message: string; wishlist: Wishlist }>('/wishlist', data),
+
+  updateWishlistNote: (restaurantId: string, note: string) =>
+    api.patch<{ message: string; wishlist: Wishlist }>(`/wishlist/${restaurantId}`, { note }),
+
+  removeFromWishlist: (restaurantId: string) =>
+    api.delete<{ message: string }>(`/wishlist/${restaurantId}`),
+
+  checkWishlist: (restaurantId: string) =>
+    api.get<WishlistCheckResponse>(`/wishlist/check/${restaurantId}`),
 };
 
 export default api;
