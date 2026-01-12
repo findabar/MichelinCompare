@@ -7,6 +7,7 @@ import { Star, MapPin, User, Plus, Trash2, Edit3, Save, X, RefreshCw } from 'luc
 import { restaurantAPI, visitAPI, scraperAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import WishlistButton from '../components/WishlistButton';
 import { getStarCount } from '../utils/restaurant';
 
 interface VisitForm {
@@ -423,6 +424,37 @@ const RestaurantDetailPage = () => {
               />
             </div>
           </form>
+        )}
+
+        {/* Wishlist and Social Indicators */}
+        {user && !isEditing && (
+          <div className="mt-6 pt-6 border-t space-y-4">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Wishlist</h3>
+              <WishlistButton
+                restaurantId={id!}
+                restaurantName={restaurantData.name}
+                onWishlistChange={() => queryClient.invalidateQueries(['restaurant', id])}
+              />
+            </div>
+
+            {/* Social Indicator */}
+            {restaurantData.socialIndicator && restaurantData.socialIndicator.friendsVisitedCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <User className="h-4 w-4" />
+                <span>{restaurantData.socialIndicator.friendsVisitedCount} {restaurantData.socialIndicator.friendsVisitedCount === 1 ? 'person has' : 'people have'} visited</span>
+              </div>
+            )}
+
+            {/* Booking Window Hint */}
+            {restaurantData.bookingWindowDays && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <span className="font-medium">Booking tip:</span> Bookings typically open {restaurantData.bookingWindowDays} days in advance
+                </p>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Visit Action */}

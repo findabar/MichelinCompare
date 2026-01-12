@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Star, User, Trophy, Map, Home, LogOut } from 'lucide-react';
+import { Star, User, Trophy, Map, Home, LogOut, Bookmark } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -62,6 +62,13 @@ const Navbar = () => {
                       className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
                     >
                       Profile
+                    </Link>
+                    <Link
+                      to="/wishlist"
+                      className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                    >
+                      <Bookmark className="h-4 w-4" />
+                      <span>Wishlist</span>
                     </Link>
                     <button
                       onClick={handleLogout}
