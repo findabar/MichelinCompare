@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Star, User, Trophy, Map, Home, LogOut, Bookmark, MapPin } from 'lucide-react';
+import { Star, User, Trophy, Map, Home, LogOut, Bookmark, MapPin, Plane } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -73,6 +73,13 @@ const Navbar = () => {
                     >
                       <Bookmark className="h-4 w-4" />
                       <span>Wishlist</span>
+                    </Link>
+                    <Link
+                      to="/travel-plans"
+                      className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                    >
+                      <Plane className="h-4 w-4" />
+                      <span>Travel Plans</span>
                     </Link>
                     <button
                       onClick={handleLogout}

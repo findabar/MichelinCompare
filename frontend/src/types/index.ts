@@ -158,3 +158,48 @@ export interface MapResponse {
   restaurants: MapRestaurant[];
   count: number;
 }
+
+export interface TravelPlanRestaurant {
+  id: string;
+  travelPlanId: string;
+  restaurantId: string;
+  day: number;
+  mealType: 'lunch' | 'dinner';
+  order: number;
+  createdAt: string;
+  restaurant: Restaurant;
+}
+
+export interface TravelPlan {
+  id: string;
+  userId: string;
+  city: string;
+  country?: string;
+  startDate: string;
+  endDate: string;
+  maxStarsPerDay?: number;
+  preferredCuisines: string[];
+  includeVisited: boolean;
+  shareToken?: string;
+  createdAt: string;
+  updatedAt: string;
+  restaurants: TravelPlanRestaurant[];
+  user?: {
+    username: string;
+  };
+}
+
+export interface TravelPlanResponse {
+  travelPlans: TravelPlan[];
+  pagination: Pagination;
+}
+
+export interface TravelPlanCreateRequest {
+  city: string;
+  country?: string;
+  startDate: string;
+  endDate: string;
+  maxStarsPerDay?: number;
+  preferredCuisines?: string[];
+  includeVisited?: boolean;
+}

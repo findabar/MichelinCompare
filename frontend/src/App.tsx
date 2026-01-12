@@ -9,6 +9,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import ProfilePage from './pages/ProfilePage';
 import WishlistPage from './pages/WishlistPage';
 import MapPage from './pages/MapPage';
+import TravelPlanPage from './pages/TravelPlanPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -37,6 +38,7 @@ function App() {
           <>
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="wishlist" element={<WishlistPage />} />
+            <Route path="travel-plans" element={<TravelPlanPage />} />
           </>
         )}
       </Route>
