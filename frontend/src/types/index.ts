@@ -123,3 +123,38 @@ export interface WishlistCheckResponse {
   inWishlist: boolean;
   wishlist: Wishlist | null;
 }
+
+export interface MapRestaurant {
+  id: string;
+  name: string;
+  city: string;
+  country: string;
+  cuisineType: string;
+  michelinStars: number;
+  distinction?: string | null;
+  latitude: number;
+  longitude: number;
+  address: string;
+  imageUrl?: string | null;
+  isVisited?: boolean;
+  isWishlisted?: boolean;
+}
+
+export interface MapFilters {
+  bounds?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
+  stars?: string; // comma-separated: "1,2,3"
+  cuisines?: string; // comma-separated
+  centerLat?: number;
+  centerLng?: number;
+  radiusKm?: number;
+}
+
+export interface MapResponse {
+  restaurants: MapRestaurant[];
+  count: number;
+}

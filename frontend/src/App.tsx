@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import ProfilePage from './pages/ProfilePage';
 import WishlistPage from './pages/WishlistPage';
+import MapPage from './pages/MapPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -28,6 +29,7 @@ function App() {
         <Route index element={<HomePage />} />
         <Route path="restaurants" element={<RestaurantsPage />} />
         <Route path="restaurants/:id" element={<RestaurantDetailPage />} />
+        <Route path="map" element={<MapPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
         <Route path="profile/:username" element={<ProfilePage />} />
 
