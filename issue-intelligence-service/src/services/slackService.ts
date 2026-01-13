@@ -1,4 +1,5 @@
-import { WebClient } from '@slack/web-api';
+// TODO: Uncomment when Slack App is configured
+// import { WebClient } from '@slack/web-api';
 import { config } from '../config';
 import {
   AlertContext,
@@ -9,10 +10,12 @@ import {
 import logger from '../utils/logger';
 
 export class SlackService {
-  private client: WebClient;
+  // private client: WebClient;
 
   constructor() {
-    this.client = new WebClient(config.slack.token);
+    // TODO: Uncomment when Slack token is configured
+    // this.client = new WebClient(config.slack.token);
+    logger.info('SlackService initialized (Slack integration disabled - configure later)');
   }
 
   async sendAlert(params: {
@@ -22,8 +25,19 @@ export class SlackService {
   }): Promise<{ ts: string; channel: string }> {
     const { alert, validation, categorization } = params;
 
-    logger.info('Sending Slack alert', { alertName: alert.alertName, severity: categorization.severity });
+    logger.info('[SLACK DISABLED] Would send alert', {
+      alertName: alert.alertName,
+      severity: categorization.severity,
+      reason: validation.reason,
+    });
 
+    // Return mock response for now
+    return {
+      ts: `mock-ts-${Date.now()}`,
+      channel: 'mock-channel',
+    };
+
+    /* TODO: Uncomment when Slack is configured
     const channel = this.getChannelForSeverity(categorization.severity);
     const emoji = this.getEmojiForSeverity(categorization.severity);
 
@@ -116,6 +130,7 @@ export class SlackService {
       logger.error('Failed to send Slack alert', { error });
       throw error;
     }
+    */
   }
 
   async updateThread(
@@ -128,6 +143,17 @@ export class SlackService {
   ): Promise<void> {
     const { remediation, githubIssue } = params;
 
+    logger.info('[SLACK DISABLED] Would update thread', {
+      ts,
+      channel,
+      remediationSuccess: remediation?.success,
+      githubIssueNumber: githubIssue?.number,
+    });
+
+    // No-op for now
+    return;
+
+    /* TODO: Uncomment when Slack is configured
     let text = '';
 
     if (remediation) {
@@ -155,6 +181,7 @@ export class SlackService {
     } catch (error) {
       logger.error('Failed to update Slack thread', { error, ts, channel });
     }
+    */
   }
 
   async sendResolutionNotification(params: {
@@ -163,6 +190,16 @@ export class SlackService {
   }): Promise<void> {
     const { alert, remediation } = params;
 
+    logger.info('[SLACK DISABLED] Would send resolution notification', {
+      alertName: alert.alertName,
+      action: remediation.action,
+      success: remediation.success,
+    });
+
+    // No-op for now
+    return;
+
+    /* TODO: Uncomment when Slack is configured
     const channel = config.slack.channels.resolved;
     if (!channel) return;
 
@@ -178,6 +215,7 @@ export class SlackService {
     } catch (error) {
       logger.error('Failed to send resolution notification', { error });
     }
+    */
   }
 
   private getChannelForSeverity(severity: string): string {

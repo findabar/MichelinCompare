@@ -34,6 +34,7 @@ export const config = {
   },
 
   slack: {
+    // Optional - configure later
     token: process.env.SLACK_BOT_TOKEN,
     channels: {
       critical: process.env.SLACK_CHANNEL_CRITICAL,
