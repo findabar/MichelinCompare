@@ -32,7 +32,7 @@ export const restaurantQuerySchema = Joi.object({
 
 export const wishlistSchema = Joi.object({
   restaurantId: Joi.string().required(),
-  note: Joi.string().allow('').optional(),
+  note: Joi.string().trim().allow('').optional(),
 });
 
 export const travelPlanSchema = Joi.object({

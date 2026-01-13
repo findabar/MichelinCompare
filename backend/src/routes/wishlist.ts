@@ -36,12 +36,12 @@ router.get('/', async (req: AuthRequest, res, next) => {
     const totalPages = Math.ceil(total / limit);
 
     res.json({
-      wishlists,
-      pagination: {
-        current: page,
-        total: totalPages,
-        count: wishlists.length,
-        totalCount: total,
+      success: true,
+      data: {
+        wishlists,
+        total,
+        page,
+        totalPages,
       },
     });
   } catch (error) {
@@ -69,36 +69,32 @@ router.post('/', async (req: AuthRequest, res, next) => {
       return next(createError('Restaurant not found', 404));
     }
 
-    // Check if already in wishlist
-    const existingWishlist = await prisma.wishlist.findUnique({
-      where: {
-        userId_restaurantId: {
+    // Try to create wishlist entry (let database unique constraint handle duplicates)
+    try {
+      const wishlist = await prisma.wishlist.create({
+        data: {
           userId,
           restaurantId,
+          note,
         },
-      },
-    });
+        include: {
+          restaurant: true,
+        },
+      });
 
-    if (existingWishlist) {
-      return next(createError('Restaurant is already in your wishlist', 400));
+      res.status(201).json({
+        success: true,
+        data: {
+          wishlist,
+        },
+      });
+    } catch (dbError) {
+      // Check if it's a unique constraint violation (P2002)
+      if ((dbError as any).code === 'P2002') {
+        return next(createError('Restaurant already in wishlist', 400));
+      }
+      throw dbError;
     }
-
-    // Create wishlist entry
-    const wishlist = await prisma.wishlist.create({
-      data: {
-        userId,
-        restaurantId,
-        note,
-      },
-      include: {
-        restaurant: true,
-      },
-    });
-
-    res.status(201).json({
-      message: 'Restaurant added to wishlist',
-      wishlist,
-    });
   } catch (error) {
     next(error);
   }
@@ -108,8 +104,17 @@ router.post('/', async (req: AuthRequest, res, next) => {
 router.patch('/:restaurantId', async (req: AuthRequest, res, next) => {
   try {
     const { restaurantId } = req.params;
-    const { note } = req.body;
+    let { note } = req.body;
     const userId = req.userId!;
+
+    if (note === undefined) {
+      return next(createError('Note field is required', 400));
+    }
+
+    // Trim whitespace
+    if (typeof note === 'string') {
+      note = note.trim();
+    }
 
     const wishlist = await prisma.wishlist.findUnique({
       where: {
@@ -140,8 +145,10 @@ router.patch('/:restaurantId', async (req: AuthRequest, res, next) => {
     });
 
     res.json({
-      message: 'Wishlist note updated',
-      wishlist: updatedWishlist,
+      success: true,
+      data: {
+        wishlist: updatedWishlist,
+      },
     });
   } catch (error) {
     next(error);
@@ -176,7 +183,12 @@ router.delete('/:restaurantId', async (req: AuthRequest, res, next) => {
       },
     });
 
-    res.json({ message: 'Restaurant removed from wishlist' });
+    res.json({
+      success: true,
+      data: {
+        message: 'Restaurant removed from wishlist',
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -201,8 +213,11 @@ router.get('/check/:restaurantId', async (req: AuthRequest, res, next) => {
     });
 
     res.json({
-      inWishlist: !!wishlist,
-      wishlist: wishlist || null,
+      success: true,
+      data: {
+        inWishlist: !!wishlist,
+        wishlist: wishlist || null,
+      },
     });
   } catch (error) {
     next(error);

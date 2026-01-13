@@ -9,6 +9,7 @@ import visitRoutes from '../../routes/visits';
 import leaderboardRoutes from '../../routes/leaderboard';
 import feedbackRoutes from '../../routes/feedback';
 import scraperRoutes from '../../routes/scraper';
+import wishlistRoutes from '../../routes/wishlist';
 import { errorHandler } from '../../middleware/errorHandler';
 
 /**
@@ -29,6 +30,7 @@ export function createTestApp() {
   app.use('/api/leaderboard', leaderboardRoutes);
   app.use('/api/feedback', feedbackRoutes);
   app.use('/api/scraper', scraperRoutes);
+  app.use('/api/wishlist', wishlistRoutes);
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
