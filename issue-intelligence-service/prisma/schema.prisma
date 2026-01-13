@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AlertEvent {
+  id                String   @id @default(uuid())
+  alertId           String   @unique
+  alertName         String
+  severity          String
+  receivedAt        DateTime @default(now())
+
+  // Investigation
+  investigatedAt    DateTime?
+  isRealIssue       Boolean?
+  confidence        Float?
+  validationReason  String?
+
+  // Categorization
+  category          String?
+  type              String?
+  component         String?
+
+  // Auto-remediation
+  remediationAttempted Boolean @default(false)
+  remediationSuccess   Boolean?
+  remediationStrategy  String?
+
+  // Slack notification
+  slackMessageTs    String?  // Slack message timestamp for threading
+  slackChannel      String?
+
+  // GitHub Integration
+  githubIssueNumber Int?
+  githubIssueUrl    String?
+  createdIssueAt    DateTime?
+
+  // Context
+  logAnalysis       Json?
+  healthCheck       Json?
+  historicalContext Json?
+  rawAlertPayload   Json
+
+  // Relations
+  updates             AlertUpdate[]
+  remediationAttempts RemediationAttempt[]
+
+  @@index([alertName, receivedAt])
+  @@index([githubIssueNumber])
+  @@index([slackMessageTs])
+}
+
+model AlertUpdate {
+  id           String      @id @default(uuid())
+  alertEventId String
+  alertEvent   AlertEvent  @relation(fields: [alertEventId], references: [id])
+
+  timestamp    DateTime    @default(now())
+  updateType   String      // 'resolved', 'escalated', 'comment'
+  details      Json
+
+  @@index([alertEventId])
+}
+
+model IssuePattern {
+  id                 String   @id @default(uuid())
+  pattern            String   // error message pattern
+  category           String
+  component          String
+  knownFalsePositive Boolean  @default(false)
+  occurrences        Int      @default(1)
+  lastSeen           DateTime @default(now())
+
+  @@index([pattern])
+}
+
+model KnownIssue {
+  id                String   @id @default(uuid())
+  title             String
+  errorPattern      String   // regex pattern to match errors
+  description       String
+  solution          String   @db.Text
+  autoRemediable    Boolean  @default(false)
+  remediationScript String?  @db.Text
+  category          String
+  component         String
+  severity          String
+
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String   // 'system' or user email
+  occurrences       Int      @default(0)
+  lastSeen          DateTime?
+
+  // GitHub reference (if originated from an issue)
+  githubIssueNumber Int?
+  githubIssueUrl    String?
+
+  // Success metrics
+  autoFixSuccessCount Int    @default(0)
+  autoFixFailCount    Int    @default(0)
+
+  // Relations
+  remediationAttempts RemediationAttempt[]
+
+  @@index([errorPattern])
+  @@index([component, category])
+}
+
+model RemediationAttempt {
+  id                String      @id @default(uuid())
+  alertEventId      String
+  alertEvent        AlertEvent  @relation(fields: [alertEventId], references: [id])
+  knownIssueId      String?
+  knownIssue        KnownIssue? @relation(fields: [knownIssueId], references: [id])
+
+  attemptedAt       DateTime    @default(now())
+  strategy          String      // 'restart', 'cache_clear', etc.
+  success           Boolean
+  errorMessage      String?
+  logs              Json?
+
+  @@index([alertEventId])
+  @@index([knownIssueId])
+}
