@@ -2,7 +2,7 @@ name: Claude Code Issue Handler
 
 on:
   issues:
-    types: [opened, edited, assigned]
+    types: [opened, edited, assigned, labeled]
   issue_comment:
     types: [created, edited]
   pull_request_review_comment:
@@ -46,3 +46,12 @@ jobs:
                 }
               }
             }'
+
+      - name: Mark issue as analyzed
+        if: contains(github.event.issue.labels.*.name, 'needs-claude-analysis')
+        run: |
+          gh issue edit ${{ github.event.issue.number }} \
+            --remove-label "needs-claude-analysis" \
+            --add-label "claude-analyzed"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
