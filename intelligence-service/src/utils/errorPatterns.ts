@@ -83,6 +83,13 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
     severity: 'high',
     category: 'general',
   },
+
+  // Catch-all for any line with "error" (low severity as it's broad)
+  {
+    pattern: /error/i,
+    severity: 'low',
+    category: 'general',
+  },
 ];
 
 export function matchErrorPattern(message: string): ErrorPattern | null {
