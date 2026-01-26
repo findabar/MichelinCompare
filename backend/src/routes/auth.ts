@@ -4,6 +4,7 @@ import { prisma } from '../utils/prisma';
 import { generateToken } from '../utils/jwt';
 import { registerSchema, loginSchema } from '../utils/validation';
 import { createError } from '../middleware/errorHandler';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -92,6 +93,37 @@ router.post('/login', async (req, res, next) => {
         totalScore: user.totalScore,
         restaurantsVisitedCount: user.restaurantsVisitedCount,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/refresh', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        admin: true,
+        totalScore: true,
+        restaurantsVisitedCount: true,
+      },
+    });
+
+    if (!user) {
+      return next(createError('User not found', 404));
+    }
+
+    // Generate new token
+    const token = generateToken({ userId: user.id });
+
+    res.json({
+      message: 'Token refreshed successfully',
+      token,
+      user,
     });
   } catch (error) {
     next(error);

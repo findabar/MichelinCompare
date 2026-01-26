@@ -35,11 +35,45 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If 403 and haven't already retried
+    if (error.response?.status === 403 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // Try to refresh token
+        const response = await api.post('/auth/refresh');
+        const { token, user } = response.data;
+
+        // Update stored credentials
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+
+        // Retry original request with new token
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, clear auth and redirect
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (!window.location.pathname.match(/^\/(login|register)/)) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // Handle 401 or already retried 403
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('user');
+      if (!window.location.pathname.match(/^\/(login|register)/)) {
+        window.location.href = '/login';
+      }
     }
+
     return Promise.reject(error);
   }
 );
