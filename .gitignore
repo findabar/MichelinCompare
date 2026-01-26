@@ -50,3 +50,5 @@ prisma/migrations/
 
 # Coverage
 coverage/
+.claude/settings.local.json
+scripts/geocode-restaurant.sh
