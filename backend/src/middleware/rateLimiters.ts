@@ -16,6 +16,7 @@ const createRateLimiter = (
       error: message,
       retryAfter: 'Check Retry-After header for when to retry',
     },
+    skip: () => process.env.NODE_ENV === 'test', // Skip rate limiting in test environment
   });
 };
 

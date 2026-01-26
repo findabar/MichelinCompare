@@ -15,6 +15,9 @@ beforeAll(async () => {
 // Clean up database after each test
 afterEach(async () => {
   // Delete in order of dependencies
+  await prisma.travelPlanRestaurant.deleteMany();
+  await prisma.travelPlan.deleteMany();
+  await prisma.wishlist.deleteMany();
   await prisma.userVisit.deleteMany();
   await prisma.user.deleteMany();
   await prisma.restaurant.deleteMany();
