@@ -91,13 +91,9 @@ export class RailwayLogPoller {
       const query = gql`
         query GetLogs($deploymentId: String!, $limit: Int, $filter: String) {
           deploymentLogs(deploymentId: $deploymentId, limit: $limit, filter: $filter) {
-            edges {
-              node {
-                timestamp
-                message
-                severity
-              }
-            }
+            timestamp
+            message
+            severity
           }
         }
       `;
@@ -110,22 +106,21 @@ export class RailwayLogPoller {
       };
 
       const data = await this.client.request<any>(query, variables);
-      const logEdges = data?.deploymentLogs?.edges || [];
+      const logArray = data?.deploymentLogs || [];
 
       const logs: LogEntry[] = [];
 
-      for (const edge of logEdges) {
-        const logNode = edge.node;
-        const logTimestamp = new Date(logNode.timestamp);
+      for (const logItem of logArray) {
+        const logTimestamp = new Date(logItem.timestamp);
 
         // Only include logs after sinceTime
         if (logTimestamp >= sinceTime) {
-          const parsed = parseRailwayLog(logNode.message, serviceName, deploymentId);
+          const parsed = parseRailwayLog(logItem.message, serviceName, deploymentId);
           if (parsed) {
             logs.push({
               ...parsed,
               timestamp: logTimestamp,
-              severity: logNode.severity || parsed.severity,
+              severity: logItem.severity || parsed.severity,
             });
           }
         }
