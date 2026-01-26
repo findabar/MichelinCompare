@@ -3,10 +3,12 @@ import { prisma } from '../utils/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import { generateMichelinProfile } from '../services/michelinProfileService';
+import { readLimiter } from '../middleware/rateLimiters';
 
 const router = express.Router();
 
-router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) => {
+// Apply generous rate limiting to read operations (300 req/15min)
+router.get('/profile', authenticateToken, readLimiter, async (req: AuthRequest, res, next) => {
   try {
     const userId = req.userId!;
 
@@ -131,7 +133,7 @@ router.get('/profile/:username', async (req, res, next) => {
 });
 
 // Get detailed profile statistics for the Michelin Profile card
-router.get('/profile/:username/profile-stats', async (req, res, next) => {
+router.get('/profile/:username/profile-stats', readLimiter, async (req, res, next) => {
   try {
     const { username } = req.params;
 
@@ -194,7 +196,7 @@ router.get('/profile/:username/profile-stats', async (req, res, next) => {
 });
 
 // Get Michelin profile for a user by user ID
-router.get('/:id/michelin-profile', async (req, res, next) => {
+router.get('/:id/michelin-profile', readLimiter, async (req, res, next) => {
   try {
     const { id } = req.params;
 

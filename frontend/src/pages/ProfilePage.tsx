@@ -1,11 +1,13 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { Star, Map, Calendar, Trophy, User as UserIcon } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { userAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MichelinProfileCard from '../components/MichelinProfileCard';
 import { getStarCount } from '../utils/restaurant';
+import { getQueryErrorMessage } from '../utils/errorMessages';
 
 const ProfilePage = () => {
   const { username } = useParams<{ username: string }>();
@@ -14,7 +16,15 @@ const ProfilePage = () => {
   const { data: profile, isLoading } = useQuery(
     ['user-profile', username],
     () => userAPI.getUserProfile(username!),
-    { enabled: !!username }
+    {
+      enabled: !!username,
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'user profile');
+          toast.error(message);
+        }
+      },
+    }
   );
 
   if (isLoading) {

@@ -3,10 +3,12 @@ import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react
 import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import { Star, Filter, MapPin, Heart, CheckCircle2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { restaurantAPI } from '../services/api';
 import { MapFilters, MapRestaurant } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getQueryErrorMessage } from '../utils/errorMessages';
 
 const MapPage = () => {
   const { user } = useAuth();
@@ -29,7 +31,17 @@ const MapPage = () => {
   const API_KEY = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '';
 
   // Get filter options
-  const { data: filterOptions } = useQuery('filter-options', restaurantAPI.getFilterOptions);
+  const { data: filterOptions } = useQuery(
+    'filter-options',
+    restaurantAPI.getFilterOptions,
+    {
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          toast.error('Failed to load filter options.');
+        }
+      },
+    }
+  );
 
   // Build filters for API call
   const buildFilters = useCallback((): MapFilters => {
@@ -55,6 +67,12 @@ const MapPage = () => {
     {
       enabled: true,
       keepPreviousData: true,
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'map restaurants');
+          toast.error(message);
+        }
+      },
     }
   );
 

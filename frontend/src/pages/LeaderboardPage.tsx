@@ -1,21 +1,38 @@
 import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import { Trophy, Star, Map, Medal, Crown } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { leaderboardAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getQueryErrorMessage } from '../utils/errorMessages';
 
 const LeaderboardPage = () => {
   const { user } = useAuth();
 
   const { data: leaderboard, isLoading } = useQuery(
     'leaderboard',
-    () => leaderboardAPI.getLeaderboard(1, 100)
+    () => leaderboardAPI.getLeaderboard(1, 100),
+    {
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'leaderboard');
+          toast.error(message);
+        }
+      },
+    }
   );
 
   const { data: stats } = useQuery(
     'leaderboard-stats',
-    leaderboardAPI.getStats
+    leaderboardAPI.getStats,
+    {
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          toast.error('Failed to load leaderboard statistics.');
+        }
+      },
+    }
   );
 
   if (isLoading) {

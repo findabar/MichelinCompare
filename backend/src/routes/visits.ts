@@ -3,12 +3,14 @@ import { prisma } from '../utils/prisma';
 import { visitSchema } from '../utils/validation';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
+import { writeLimiter } from '../middleware/rateLimiters';
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
-router.post('/', async (req: AuthRequest, res, next) => {
+// Apply moderate rate limiting to write operations (100 req/15min)
+router.post('/', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const { error, value } = visitSchema.validate(req.body);
     if (error) {
@@ -127,7 +129,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
   }
 });
 
-router.delete('/:id', async (req: AuthRequest, res, next) => {
+router.delete('/:id', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.userId!;

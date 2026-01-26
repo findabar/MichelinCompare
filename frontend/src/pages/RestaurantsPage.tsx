@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Star, MapPin, Search, Filter } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { restaurantAPI } from '../services/api';
 import { RestaurantFilters } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { getStarCount } from '../utils/restaurant';
+import { getQueryErrorMessage } from '../utils/errorMessages';
 
 const RestaurantsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,12 +25,28 @@ const RestaurantsPage = () => {
   const { data: restaurants, isLoading } = useQuery(
     ['restaurants', filters],
     () => restaurantAPI.getRestaurants(filters),
-    { keepPreviousData: true }
+    {
+      keepPreviousData: true,
+      onError: (error: any) => {
+        // Only show toast if not 429 (already handled in interceptor)
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'restaurants');
+          toast.error(message);
+        }
+      },
+    }
   );
 
   const { data: filterOptions } = useQuery(
     'filter-options',
-    restaurantAPI.getFilterOptions
+    restaurantAPI.getFilterOptions,
+    {
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          toast.error('Failed to load filter options.');
+        }
+      },
+    }
   );
 
   useEffect(() => {

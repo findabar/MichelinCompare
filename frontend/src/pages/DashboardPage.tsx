@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import RestaurantMap from '../components/RestaurantMap';
 import { getStarCount } from '../utils/restaurant';
+import { getQueryErrorMessage } from '../utils/errorMessages';
 
 interface FeedbackForm {
   feedbackType: string;
@@ -36,12 +37,26 @@ const DashboardPage = () => {
           });
         }
       },
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'profile');
+          toast.error(message);
+        }
+      },
     }
   );
 
   const { data: visits } = useQuery(
     'user-visits',
-    () => visitAPI.getUserVisits(1, 50)
+    () => visitAPI.getUserVisits(1, 50),
+    {
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'visits');
+          toast.error(message);
+        }
+      },
+    }
   );
 
   const deleteVisitMutation = useMutation(visitAPI.deleteVisit, {

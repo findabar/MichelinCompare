@@ -7,6 +7,7 @@ import { travelPlanAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { TravelPlanCreateRequest, TravelPlan as TravelPlanType } from '../types';
+import { getQueryErrorMessage } from '../utils/errorMessages';
 
 const TravelPlanPage = () => {
   const { user } = useAuth();
@@ -25,7 +26,15 @@ const TravelPlanPage = () => {
   const { data: travelPlansData, isLoading } = useQuery(
     'user-travel-plans',
     () => travelPlanAPI.getTravelPlans(1, 100),
-    { enabled: !!user }
+    {
+      enabled: !!user,
+      onError: (error: any) => {
+        if (error?.response?.status !== 429) {
+          const message = getQueryErrorMessage(error, 'travel plans');
+          toast.error(message);
+        }
+      },
+    }
   );
 
   const createTravelPlanMutation = useMutation(
@@ -127,10 +136,11 @@ const TravelPlanPage = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
                   City *
                 </label>
                 <input
+                  id="city"
                   type="text"
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
@@ -140,10 +150,11 @@ const TravelPlanPage = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
                   Country
                 </label>
                 <input
+                  id="country"
                   type="text"
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
@@ -155,10 +166,11 @@ const TravelPlanPage = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
                   Start Date *
                 </label>
                 <input
+                  id="startDate"
                   type="date"
                   value={formData.startDate}
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
@@ -167,10 +179,11 @@ const TravelPlanPage = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
                   End Date *
                 </label>
                 <input
+                  id="endDate"
                   type="date"
                   value={formData.endDate}
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
@@ -181,10 +194,11 @@ const TravelPlanPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="maxStarsPerDay" className="block text-sm font-medium text-gray-700 mb-1">
                 Max Stars Per Day
               </label>
               <select
+                id="maxStarsPerDay"
                 value={formData.maxStarsPerDay}
                 onChange={(e) =>
                   setFormData({ ...formData, maxStarsPerDay: parseInt(e.target.value) })
@@ -213,6 +227,7 @@ const TravelPlanPage = () => {
                     setFormData({ ...formData, includeVisited: e.target.checked })
                   }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  aria-label="Include restaurants I've already visited"
                 />
                 <span className="text-sm font-medium text-gray-700">
                   Include restaurants I've already visited

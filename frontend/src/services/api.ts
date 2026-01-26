@@ -1,4 +1,6 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import { getErrorMessage } from '../utils/errorMessages';
 import type {
   AuthResponse,
   RestaurantResponse,
@@ -34,9 +36,35 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log rate limit info in development
+    if (import.meta.env.DEV) {
+      const limit = response.headers['ratelimit-limit'];
+      const remaining = response.headers['ratelimit-remaining'];
+      const reset = response.headers['ratelimit-reset'];
+
+      if (limit && remaining) {
+        console.log(`[Rate Limit] ${remaining}/${limit} remaining (resets at: ${reset})`);
+      }
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
+
+    // Handle 429 rate limit errors
+    if (error.response?.status === 429) {
+      const message = getErrorMessage(error);
+
+      // Show user-friendly toast notification
+      toast.error(message, {
+        duration: 5000,
+        icon: '⏱️',
+      });
+
+      // Don't retry automatically for 429 - let React Query handle it
+      return Promise.reject(error);
+    }
 
     // If 403 and haven't already retried
     if (error.response?.status === 403 && !originalRequest._retry) {

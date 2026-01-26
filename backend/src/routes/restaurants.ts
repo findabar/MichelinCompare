@@ -4,10 +4,12 @@ import { restaurantQuerySchema } from '../utils/validation';
 import { createError } from '../middleware/errorHandler';
 import adminAuth from '../middleware/adminAuth';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { readLimiter } from '../middleware/rateLimiters';
 
 const router = express.Router();
 
-router.get('/', async (req, res, next) => {
+// Apply generous rate limiting to read-heavy routes (300 req/15min)
+router.get('/', readLimiter, async (req, res, next) => {
   try {
     const { error, value } = restaurantQuerySchema.validate(req.query);
     if (error) {
@@ -73,7 +75,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/filters', async (req, res, next) => {
+router.get('/filters', readLimiter, async (req, res, next) => {
   try {
     const [countries, cities, cuisineTypes] = await Promise.all([
       prisma.restaurant.findMany({
@@ -104,7 +106,7 @@ router.get('/filters', async (req, res, next) => {
 });
 
 // Map endpoint - returns restaurants with location data and user flags
-router.get('/map', async (req: AuthRequest, res, next) => {
+router.get('/map', readLimiter, async (req: AuthRequest, res, next) => {
   try {
     // Parse query parameters
     const {
@@ -216,7 +218,7 @@ router.get('/map', async (req: AuthRequest, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', readLimiter, async (req, res, next) => {
   try {
     const { id } = req.params;
 

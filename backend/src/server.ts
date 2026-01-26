@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,6 +16,7 @@ import adminRoutes from './routes/admin';
 import wishlistRoutes from './routes/wishlist';
 import travelPlansRoutes from './routes/travelPlans';
 import { errorHandler } from './middleware/errorHandler';
+import { globalLimiter } from './middleware/rateLimiters';
 
 dotenv.config();
 
@@ -25,12 +25,6 @@ const PORT = process.env.PORT || 3001;
 
 // Trust Railway proxy specifically
 app.set('trust proxy', 1);
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests from this IP, please try again later.',
-});
 
 app.use(
   helmet({
@@ -71,7 +65,9 @@ app.use(
     },
   })
 );
-app.use(limiter);
+// Apply global rate limiter (500 req/15min) as a safety net
+// Route-specific limiters are applied in individual route files
+app.use(globalLimiter);
 
 // Parse FRONTEND_URL - can be comma-separated list of origins
 const allowedOrigins = process.env.FRONTEND_URL

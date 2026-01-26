@@ -5,10 +5,12 @@ import { generateToken } from '../utils/jwt';
 import { registerSchema, loginSchema } from '../utils/validation';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimiters';
 
 const router = express.Router();
 
-router.post('/register', async (req, res, next) => {
+// Apply strict rate limiting to auth routes (10 req/15min)
+router.post('/register', authLimiter, async (req, res, next) => {
   try {
     const { error, value } = registerSchema.validate(req.body);
     if (error) {
@@ -58,7 +60,7 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', authLimiter, async (req, res, next) => {
   try {
     const { error, value } = loginSchema.validate(req.body);
     if (error) {

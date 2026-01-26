@@ -1,9 +1,11 @@
 import express from 'express';
 import { prisma } from '../utils/prisma';
+import { readLimiter } from '../middleware/rateLimiters';
 
 const router = express.Router();
 
-router.get('/', async (req, res, next) => {
+// Apply generous rate limiting to read-heavy routes (300 req/15min)
+router.get('/', readLimiter, async (req, res, next) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -50,7 +52,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/stats', async (req, res, next) => {
+router.get('/stats', readLimiter, async (req, res, next) => {
   try {
     const [
       totalUsers,
