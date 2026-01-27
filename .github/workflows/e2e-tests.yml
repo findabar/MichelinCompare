@@ -88,7 +88,8 @@ jobs:
 
       - name: Run Playwright tests
         env:
-          BASE_URL: http://localhost:3000
+          BASE_URL: https://www.michelinstarhunter.com
+          API_URL: https://www.michelinstarhunter.com
         run: npm run test:e2e
 
       - name: Upload Playwright Report
