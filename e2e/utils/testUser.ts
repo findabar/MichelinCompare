@@ -3,8 +3,8 @@ import { APIRequestContext } from '@playwright/test';
 export async function createTestUser(request: APIRequestContext) {
   const timestamp = Date.now();
   const testUser = {
-    username: `test_${timestamp}`,
-    email: `test_${timestamp}@example.com`,
+    username: `test${timestamp}`,
+    email: `test${timestamp}@example.com`,
     password: 'Test123456!',
   };
 
