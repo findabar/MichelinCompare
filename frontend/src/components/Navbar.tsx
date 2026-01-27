@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Star, User, Trophy, Map, Home, LogOut, Bookmark, MapPin, Plane } from 'lucide-react';
+import { Star, User, Trophy, Map, Home, LogOut, Bookmark, MapPin, Plane, UtensilsCrossed } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
@@ -16,7 +16,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center space-x-2">
-            <Star className="h-8 w-8 text-primary-600" />
+            <UtensilsCrossed className="h-8 w-8 text-primary-600" />
             <span className="text-xl font-bold text-gray-900">Michelin Star Hunter</span>
           </Link>
 
