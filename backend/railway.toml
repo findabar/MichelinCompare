@@ -3,7 +3,9 @@ builder = "nixpacks"
 buildCommand = "npm install && npx prisma generate && npm run build"
 
 [deploy]
-startCommand = "npx prisma db push && node dist/server.js"
+startCommand = "npx prisma migrate deploy && node dist/server.js"
+# Changed from 'npx prisma db push' to 'npx prisma migrate deploy'
+# This is safer for production as it uses actual migrations
 
 [[services]]
 name = "backend"
